@@ -219,24 +219,24 @@ fabric的一个部署是由会籍服务，多个验证peers、非验证peers和�
 
 ![Single Validating Peer](images/top-single-peer.png)
 
-A single validating peer doesn't require consensus, and by default uses the `noops` plugin, which executes transactions as they arrive. This gives the developer an immediate feedback during development.
+单个验证peer不需要共识，默认情况下使用`noops`插件来处理接受到的交易。这使得在开发中，开发人员能立即收到返回。
 
-### 2.2.2 Multiple Validating Peers
-Production or test networks should be made up of multiple validating and non-validating peers as necessary. Non-validating peers can take workload off the validating peers, such as handling API requests and processing events.
+### 2.2.2 多验证Peer    
+生产或测试网络需要有多个验证和非验证peers组成。非验证peer可以为验证peer分担像API请求处理或事件处理这样的压力。
 
 ![Multiple Validating Peers](images/top-multi-peer.png)
 
-The validating peers form a mesh-network (every validating peer connects to every other validating peer) to disseminate information. A non-validating peer connects to a neighboring validating peer that it is allowed to connect to. Non-validating peers are optional since applications may communicate directly with validating peers.
+网状网络（每个验证peer需要和其它验证peer都相连）中的验证peer来传播信息。一个非验证peer连接到附近允许它连接的验证peer。当应用可能直接连接到验证peer时，非验证peer是可选的。
 
-### 2.2.3 Multichain
-Each network of validating and non-validating peers makes up a chain. Many chains may be created to address different needs, similar to having multiple Web sites, each serving a different purpose.
+### 2.2.3 多链 
+验证和非验证peer的各个网络组成一个链。可以根据不同的需求创建不同的链，就像根据不同的目的创建不同的Web站点。
 
 
-## 3. Protocol
-The fabric's peer-to-peer communication is built on [gRPC](http://www.grpc.io/docs/), which allows bi-directional stream-based messaging. It uses [Protocol Buffers](https://developers.google.com/protocol-buffers) to serialize data structures for data transfer between peers. Protocol buffers are a language-neutral, platform-neutral and extensible mechanism for serializing structured data. Data structures, messages, and services are described using [proto3 language](https://developers.google.com/protocol-buffers/docs/proto3) notation.
+## 3. 协议
+fabric的点对点（peer-to-peer）通信是建立在允许双向的基于流的消息[gRPC](http://www.grpc.io/docs/)上的。它使用[Protocol Buffers](https://developers.google.com/protocol-buffers)来序列化peer之间传输的数据结构。Protocol buffers是语言无关，平台无关并具有可扩展机制来序列化结构化的数据的技术。数据结构，消息和服务是使用 [proto3 language](https://developers.google.com/protocol-buffers/docs/proto3)注释来描述的。
 
-### 3.1 Message
-Messages passed between nodes are encapsulated by `Message` proto structure, which consists of 4 types: Discovery, Transaction, Synchronization, and Consensus. Each type may define more subtypes embedded in the `payload`.
+### 3.1 消息
+消息在节点之间通过`Message`proto结构封装来传递的，可以分为4中类型：发现（Discovery）, 交易（Transaction）, 同步(Synchronization)和共识(Consensus)。每种类型在`payload`中定义了多种子类型。    
 
 ```
 message Message {
@@ -271,10 +271,10 @@ message Message {
     google.protobuf.Timestamp timestamp = 3;
 }
 ```
-The `payload` is an opaque byte array containing other objects such as `Transaction` or `Response` depending on the type of the message. For example, if the `type` is `CHAIN_TRANSACTION`, the `payload` is a `Transaction` object.
+`payload`是由不同的消息类型包含不同的像`Transaction`或`Response`这样的不透明的字节数组。例如：`type`为`CHAIN_TRANSACTION`那么`payload`就是一个`Transaction`对象。
 
-### 3.1.1 Discovery Messages
-Upon start up, a peer runs discovery protocol if `CORE_PEER_DISCOVERY_ROOTNODE` is specified. `CORE_PEER_DISCOVERY_ROOTNODE` is the IP address of another peer on the network (any peer) that serves as the starting point for discovering all the peers on the network. The protocol sequence begins with `DISC_HELLO`, whose `payload` is a `HelloMessage` object, containing its endpoint:
+### 3.1.1 发现消息    
+在启动时，如果`CORE_PEER_DISCOVERY_ROOTNODE`被指定，那么peer就会运行发现协议。`CORE_PEER_DISCOVERY_ROOTNODE`是网络（任意peer）中扮演用来发现所有peer的起点角色的另一个peer的IP地址。协议序列以`payload`是一个包含：
 
 ```
 message HelloMessage {
@@ -298,24 +298,29 @@ message PeerID {
 }
 ```
 
-**Definition of fields:**
+这样的端点的`HelloMessage`对象的`DISC_HELLO`消息开始的。
 
-- `PeerID` is any name given to the peer at start up or defined in the config file
-- `PeerEndpoint` describes the endpoint and whether it's a validating or a non-validating peer
-- `pkiID` is the cryptographic ID of the peer
-- `address` is host or IP address and port of the peer in the format `ip:port`
-- `blockNumber` is the height of the blockchain the peer currently has
 
-If the block height received upon `DISC_HELLO` is higher than the current block height of the peer, it immediately initiates the synchronization protocol to catch up with the network.
+**域的定义:**
 
-After `DISC_HELLO`, peer sends `DISC_GET_PEERS` periodically to discover any additional peers joining the network. In response to `DISC_GET_PEERS`, a peer sends `DISC_PEERS` with `payload` containing an array of `PeerEndpoint`. Other discovery message types are not used at this point.
+- `PeerID` 是在启动时或配置文件中定义的peer的任意名字
+- `PeerEndpoint` 描述了端点和它是验证还是非验证peer
+- `pkiID` 是peer的加密ID
+- `address` 以`ip:port`这样的格式表示的peer的主机名或IP和端口
+- `blockNumber` 是peer的区块链的当前的高度
 
-### 3.1.2 Transaction Messages
-There are 3 types of transactions: Deploy, Invoke and Query. A deploy transaction installs the specified chaincode on the chain, while invoke and query transactions call a function of a deployed chaincode. Another type in consideration is Create transaction, where a deployed chaincode may be instantiated on the chain and is addressable. This type has not been implemented as of this writing.
+如果收到的`DISC_HELLO` 消息的块的高度比当前peer的块的高度高，那么它马上初始化同步协议来追上当前的网络。    
 
-### 3.1.2.1 Transaction Data Structure
+`DISC_HELLO`之后，peer会周期性的发送`DISC_GET_PEERS`来发现任意想要加入网络的peer。收到`DISC_GET_PEERS`后，peer会发送`payload`
+包含`PeerEndpoint`的数组的`DISC_PEERS`作为响应。这是不会使用其它的发现消息类型。
 
-Messages with type `CHAIN_TRANSACTION` or `CHAIN_QUERY` carry a `Transaction` object in the `payload`:
+### 3.1.2 交易消息    
+有三种不同的交易类型：部署（Deploy），调用（Invoke）和查询（Query）。部署交易向链上安装指定的链代码，调用和查询交易会调用部署号的链代码。另一种需要考虑的类型是创建（Create）交易，其中部署好的链代码是可以在链上实例化并寻址的。这种类型在写这份文档时还没有被实现。     
+
+
+### 3.1.2.1 交易的数据结构    
+
+`CHAIN_TRANSACTION`和`CHAIN_QUERY`类型的消息会在`payload`带有`Transaction`对象：
 
 ```
 message Transaction {
@@ -350,28 +355,29 @@ enum ConfidentialityLevel {
 }
 
 ```
-**Definition of fields:**
-- `type` - The type of the transaction, which is 1 of the following:
-	- `UNDEFINED` - Reserved for future use.
-  - `CHAINCODE_DEPLOY` - Represents the deployment of a new chaincode.
-	- `CHAINCODE_INVOKE` - Represents a chaincode function execution that may read and modify the world state.
-	- `CHAINCODE_QUERY` - Represents a chaincode function execution that may only read the world state.
-	- `CHAINCODE_TERMINATE` - Marks a chaincode as inactive so that future functions of the chaincode can no longer be invoked.
-- `chaincodeID` - The ID of a chaincode which is a hash of the chaincode source, path to the source code, constructor function, and parameters.
-- `payloadHash` - Bytes defining the hash of `TransactionPayload.payload`.
-- `metadata` - Bytes defining any associated transaction metadata that the application may use.
-- `uuid` - A unique ID for the transaction.
-- `timestamp` - A timestamp of when the transaction request was received by the peer.
-- `confidentialityLevel` - Level of data confidentiality. There are currently 2 levels. Future releases may define more levels.
-- `nonce` - Used for security.
-- `cert` - Certificate of the transactor.
-- `signature` - Signature of the transactor.
-- `TransactionPayload.payload` - Bytes defining the payload of the transaction. As the payload can be large, only the payload hash is included directly in the transaction message.
 
-More detail on transaction security can be found in section 4.
+**域的定义:**
+- `type` - 交易的类型, 为1时表示:
+	- `UNDEFINED` - 为未来的使用所保留.
+  - `CHAINCODE_DEPLOY` - 代表部署新的链代码.
+	- `CHAINCODE_INVOKE` - 代表一个链代码函数被执行并修改了世界状态
+	- `CHAINCODE_QUERY` - 代表一个链代码函数被执行并可能只读取了世界状态
+	- `CHAINCODE_TERMINATE` - 标记的链代码不可用，所以链代码中的函数将不能被调用
+- `chaincodeID` - 链代码源码，路径，构造函数和参数哈希所得到的ID
+- `payloadHash` - `TransactionPayload.payload`所定义的哈希字节.
+- `metadata` - 应用可能使用的任意相关交易元数据所定义的自己
+- `uuid` - 交易的唯一ID
+- `timestamp` - peer收到交易时的时间戳
+- `confidentialityLevel` - 数据保密的级别。当前有两个级别。未来可能会有多个级别。
+- `nonce` - 为安全而使用
+- `cert` - 交易者的证书
+- `signature` - 交易者的签名
+- `TransactionPayload.payload` - 交易的payload所定义的字节。由于payload可以很大，所以交易消息只包含payload的哈希
 
-### 3.1.2.2 Transaction Specification
-A transaction is always associated with a chaincode specification which defines the chaincode and the execution environment such as language and security context. Currently there is an implementation that uses Golang for writing chaincode. Other languages may be added in the future.
+交易安全的详细信息可以在第四节找到
+
+### 3.1.2.2 交易规范
+一个交易通常会关联链代码定义及其执行环境（像语言和安全上下文）的链代码规范。现在，有一个使用Go语言来编写链代码的实现。将来可能会添加新的语言。
 
 ```
 message ChaincodeSpec {
@@ -400,18 +406,18 @@ message ChaincodeInput {
 }
 ```
 
-**Definition of fields:**
-- `chaincodeID` - The chaincode source code path and name.
-- `ctorMsg` - Function name and argument parameters to call.
-- `timeout` - Time in milliseconds to execute the transaction.
-- `confidentialityLevel` - Confidentiality level of this transaction.
-- `secureContext` - Security context of the transactor.
-- `metadata` - Any data the application wants to pass along.
+**域的定义:**
+- `chaincodeID` - 链代码源码的路径和名字
+- `ctorMsg` - 调用的函数名及参数
+- `timeout` - 执行交易所需的时间（以毫秒表示）
+- `confidentialityLevel` - 这个交易的保密级别
+- `secureContext` - 交易者的安全上下文
+- `metadata` - 应用想要传递下去的任何数据
 
-The peer, receiving the `chaincodeSpec`, wraps it in an appropriate transaction message and broadcasts to the network.
+当peer收到`chaincodeSpec`后以合适的交易消息包装它并广播到网络
 
-### 3.1.2.3 Deploy Transaction
-Transaction `type` of a deploy transaction is `CHAINCODE_DEPLOY` and the payload contains an object of `ChaincodeDeploymentSpec`.
+### 3.1.2.3 部署交易    
+部署交易的类型是`CHAINCODE_DEPLOY`，且它的payload包含`ChaincodeDeploymentSpec`对象。
 
 ```
 message ChaincodeDeploymentSpec {
@@ -420,15 +426,16 @@ message ChaincodeDeploymentSpec {
     bytes codePackage = 3;
 }
 ```
-**Definition of fields:**
-- `chaincodeSpec` - See section 3.1.2.2, above.
-- `effectiveDate` - Time when the chaincode is ready to accept invocations.
-- `codePackage` - gzip of the chaincode source.
+**域的定义:**
+- `chaincodeSpec` - 参看上面的3.1.2.2节.
+- `effectiveDate` - 链代码准备好可被调用的时间
+- `codePackage` - 链代码源码的gzip
 
-The validating peers always verify the hash of the `codePackage` when they deploy the chaincode to make sure the package has not been tampered with since the deploy transaction entered the network.
+当验证peer部署链代码时，它通常会校验`codePackage`的哈希来保证交易被部署到网络后没有被篡改。
 
-### 3.1.2.4 Invoke Transaction
-Transaction `type` of an invoke transaction is `CHAINCODE_INVOKE` and the `payload` contains an object of `ChaincodeInvocationSpec`.
+### 3.1.2.4 调用交易
+
+掉用交易的类型是`CHAINCODE_DEPLOY`，且它的payload包含`ChaincodeInvocationSpec`对象。
 
 ```
 message ChaincodeInvocationSpec {
@@ -436,37 +443,44 @@ message ChaincodeInvocationSpec {
 }
 ```
 
-### 3.1.2.5 Query Transaction
-A query transaction is similar to an invoke transaction, but the message `type` is `CHAINCODE_QUERY`.
+### 3.1.2.5 查询交易 
+查询交易除了消息类型是`CHAINCODE_QUERY`其它和调用交易一样
 
-### 3.1.3 Synchronization Messages
-Synchronization protocol starts with discovery, described above in section 3.1.1, when a peer realizes that it's behind or its current block is not the same with others. A peer broadcasts either `SYNC_GET_BLOCKS`, `SYNC_STATE_GET_SNAPSHOT`, or `SYNC_STATE_GET_DELTAS` and receives `SYNC_BLOCKS`, `SYNC_STATE_SNAPSHOT`, or `SYNC_STATE_DELTAS` respectively.
+### 3.1.3 同步消息    
+同步协议以3.1.1节描述的，当peer知道它自己的区块在其它peer之后或和它们不一样的发现开始的。peer广播`SYNC_GET_BLOCKS`，`SYNC_STATE_GET_SNAPSHOT`或`SYNC_STATE_GET_DELTAS`并分别接收`SYNC_BLOCKS`, `SYNC_STATE_SNAPSHOT`或 `SYNC_STATE_DELTAS`。
 
-The installed consensus plugin (e.g. pbft) dictates how synchronization protocol is being applied. Each message is designed for a specific situation:
+安装的共识插件（如：pbft）决定同步协议是如何被应用的。每个小时是针对具体的状态来设计的：
 
-**SYNC_GET_BLOCKS** requests for a range of contiguous blocks expressed in the message `payload`, which is an object of `SyncBlockRange`.
+**SYNC_GET_BLOCKS** 是一个`SyncBlockRange`对象，包含一个连续区块的范围的`payload`的请求。
+
 ```
 message SyncBlockRange {
     uint64 start = 1;
     uint64 end = 2;
 }
 ```
-A receiving peer responds with a `SYNC_BLOCKS` message whose `payload` contains an object of `SyncBlocks`
+接收peer使用包含 `SyncBlocks`对象的`payload`的`SYNC_BLOCKS`信息来响应
+
 ```
 message SyncBlocks {
     SyncBlockRange range = 1;
     repeated Block blocks = 2;
 }
 ```
-The `start` and `end` indicate the starting and ending blocks inclusively. The order in which blocks are returned is defined by the `start` and `end` values. For example, if `start`=3 and `end`=5, the order of blocks will be 3, 4, 5. If `start`=5 and `end`=3, the order will be 5, 4, 3.
 
-**SYNC_STATE_GET_SNAPSHOT** requests for the snapshot of the current world state. The `payload` is an object of `SyncStateSnapshotRequest`
+`start`和`end`标识包含的区块的开始和结束，返回区块的顺序由`start`和`end`的值定义。如：当`start`=3，`end`=5时区块的顺序将会是3，4，5。当`start`=5，`end`=3时区块的顺序将会是5，4，3。
+
+
+**SYNC_STATE_GET_SNAPSHOT** 请求当前世界状态的快照。 `payload`是一个`SyncStateSnapshotRequest`对象
+
 ```
 message SyncStateSnapshotRequest {
   uint64 correlationId = 1;
 }
 ```
-The `correlationId` is used by the requesting peer to keep track of the response messages. A receiving peer replies with `SYNC_STATE_SNAPSHOT` message whose `payload` is an instance of `SyncStateSnapshot`
+
+`correlationId`是请求peer用来追踪响应消息的。接受peer回复`payload`为`SyncStateSnapshot`实例的`SYNC_STATE_SNAPSHOT`信息
+
 ```
 message SyncStateSnapshot {
     bytes delta = 1;
@@ -475,36 +489,40 @@ message SyncStateSnapshot {
     SyncStateSnapshotRequest request = 4;
 }
 ```
-This message contains the snapshot or a chunk of the snapshot on the stream, and in which case, the sequence indicate the order starting at 0.  The terminating message will have len(delta) == 0.
 
-**SYNC_STATE_GET_DELTAS** requests for the state deltas of a range of contiguous blocks. By default, the Ledger maintains 500 transition deltas. A delta(j) is a state transition between block(i) and block(j) where i = j-1. The message `payload` contains an instance of `SyncStateDeltasRequest`
+这条消息包含快照或以0开始的快照流序列中的一块。终止消息是len(delta) == 0的块
+
+**SYNC_STATE_GET_DELTAS** 请求连续区块的状态变化。默认情况下总账维护500笔交易变化。 delta(j)是block(i)和block(j)之间的状态转变，其中i=j-1。 `payload`包含`SyncStateDeltasRequest`实例
+
 ```
 message SyncStateDeltasRequest {
     SyncBlockRange range = 1;
 }
 ```
-A receiving peer responds with `SYNC_STATE_DELTAS`, whose `payload` is an instance of `SyncStateDeltas`
+接收peer使用包含 `SyncStateDeltas`实例的`payload`的`SYNC_STATE_DELTAS`信息来响应
+
 ```
 message SyncStateDeltas {
     SyncBlockRange range = 1;
     repeated bytes deltas = 2;
 }
 ```
-A delta may be applied forward (from i to j) or backward (from j to i) in the state transition.
+delta可能以顺序（从i到j）或倒序（从j到i）来表示状态转变
 
-### 3.1.4 Consensus Messages
-Consensus deals with transactions, so a `CONSENSUS` message is initiated internally by the consensus framework when it receives a `CHAIN_TRANSACTION` message. The framework converts `CHAIN_TRANSACTION` into `CONSENSUS` then broadcasts to the validating nodes with the same `payload`. The consensus plugin receives this message and process according to its internal algorithm. The plugin may create custom subtypes to manage consensus finite state machine. See section 3.4 for more details.
+### 3.1.4 共识消息    
+共识处理交易，所以一个`CONSENSUS`消息是由共识框架接收到`CHAIN_TRANSACTION`消息时在内部初始化的。框架把`CHAIN_TRANSACTION`转换为 `CONSENSUS`然后以相同的`payload`广播到验证peer。共识插件接收这条消息并根据内部算法来处理。插件可能创建自定义的子类型来管理共识有穷状态机。3.4节会介绍详细信息。
 
 
-### 3.2 Ledger
+### 3.2 总账
 
-The ledger consists of two primary pieces, the blockchain and the world state. The blockchain is a series of linked blocks that is used to record transactions within the ledger. The world state is a key-value database that chaincodes may use to store state when executed by a transaction.
+总账由两个主要的部分组成，一个是区块链，一个是世界状态。区块链是在总账中的一系列连接好的用来记录交易的区块。世界状态是一个用来存储交易执行状态的键-值数据库
 
-### 3.2.1 Blockchain
 
-#### 3.2.1.1 Block
+### 3.2.1 区块链    
 
-The blockchain is defined as a linked list of blocks as each block contains the hash of the previous block in the chain. The two other important pieces of information that a block contains are the list of transactions contained within the block and the hash of the world state after executing all transactions in the block.
+#### 3.2.1.1 区块
+
+区块链是由一个区块链表定义的，每个区块包含它在链中前一个区块的哈希。区块包含的另外两个重要信息是它包含区块执行所有交易后的交易列表和世界状态的哈希
 
 ```
 message Block {
@@ -521,29 +539,29 @@ message BlockTransactions {
   repeated Transaction transactions = 1;
 }
 ```
-* `version` - Version used to track any protocol changes.
-* `timestamp` - The timestamp to be filled in by the block proposer.
-* `transactionsHash` - The merkle root hash of the block's transactions.
-* `stateHash` - The merkle root hash of the world state.
-* `previousBlockHash` - The hash of the previous block.
-* `consensusMetadata` - Optional metadata that the consensus may include in a block.
-* `nonHashData` - A `NonHashData` message that is set to nil before computing the hash of the block, but stored as part of the block in the database.
-* `BlockTransactions.transactions` - An array of Transaction messages. Transactions are not included in the block directly due to their size.
+* `version` - 用来追踪协议变化的版本号
+* `timestamp` - 由区块提议者填充的时间戳
+* `transactionsHash` - 区块中交易的merkle root hash 
+* `stateHash` - 世界状态的merkle root hash 
+* `previousBlockHash` - 前一个区块的hash 
+* `consensusMetadata` - 共识可能会引入的一些可选的元数据
+* `nonHashData` - `NonHashData`消息会在计算区块的哈希前设置为nil，但是在数据库中存储为区块的一部分
+* `BlockTransactions.transactions` - 交易消息的数组，由于交易的大小，它们不会被直接包含在区块中
 
-#### 3.2.1.2 Block Hashing
+#### 3.2.1.2 区块哈希    
 
-* The `previousBlockHash` hash is calculated using the following algorithm.
-  1. Serialize the Block message to bytes using the protocol buffer library.
+* `previousBlockHash`哈希是通过下面算法计算的
+  1. 使用protocol buffer库把区块消息序列化为字节码
 
-  2. Hash the serialized block message to 512 bits of output using the SHA3 SHAKE256 algorithm as described in [FIPS 202](http://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf).
+  2. 使用[FIPS 202](http://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf)描述的SHA3 SHAKE256算法来对序列化后的区块消息计算大小为512位的哈希值
 
-* The `transactionHash` is the root of the transaction merkle tree. Defining the merkle tree implementation is a TODO.
+* `transactionHash`是交易merkle树的根。定义merkle tree实现是一个代办
 
-* The `stateHash` is defined in section 3.2.2.1.
+* `stateHash`在3.2.2.1节中定义.
 
 #### 3.2.1.3 NonHashData
 
-The NonHashData message is used to store block metadata that is not required to be the same value on all peers. These are suggested values.
+NonHashData消息是用来存储不需要所有peer都具有相同值的块元数据。他们是建议值。
 
 ```
 message NonHashData {
@@ -559,47 +577,50 @@ message TransactionResult {
 }
 ```
 
-* `localLedgerCommitTimestamp` - A timestamp indicating when the block was commited to the local ledger.
+* `localLedgerCommitTimestamp` - 标识区块提交到本地总账的时间戳
 
-* `TransactionResult` - An array of transaction results.
+* `TransactionResult` - 交易结果的数组
 
-* `TransactionResult.uuid` - The ID of the transaction.
+* `TransactionResult.uuid` - 交易的ID
 
-* `TransactionResult.result` - The return value of the transaction.
+* `TransactionResult.result` - 交易的返回值
 
-* `TransactionResult.errorCode` - A code that can be used to log errors associated with the transaction.
+* `TransactionResult.errorCode` - 可以用来记录关联交易的错误信息的代码
 
-* `TransactionResult.error` - A string that can be used to log errors associated with the transaction.
-
-
-#### 3.2.1.4 Transaction Execution
-
-A transaction defines either the deployment of a chaincode or the execution of a chaincode. All transactions within a block are run before recording a block in the ledger. When chaincodes execute, they may modify the world state. The hash of the world state is then recorded in the block.
+* `TransactionResult.error` - 用来记录关联交易的错误信息的字符串
 
 
-### 3.2.2 World State
-The *world state* of a peer refers to the collection of the *states* of all the deployed chaincodes. Further, the state of a chaincode is represented as a collection of key-value pairs. Thus, logically, the world state of a peer is also a collection of key-value pairs where key consists of a tuple `{chaincodeID, ckey}`. Here, we use the term `key` to represent a key in the world state i.e., a tuple `{chaincodeID, ckey}` and we use the term `cKey` to represent a unique key within a chaincode.
+#### 3.2.1.4 交易执行     
 
-For the purpose of the description below, `chaincodeID` is assumed to be a valid utf8 string and `ckey` and the `value` can be a sequence of one or more arbitrary bytes.
+一个交易定义了它们部署或执行的链代码。区块中的所有交易都可以在记录到总账中的区块之前运行。当链代码执行是，他们可能会改变世界状态。之后世界状态的哈希会被记录在区块中。
 
-#### 3.2.2.1 Hashing the world state
-During the functioning of a network, many occasions such as committing transactions and synchronizing peers may require computing a crypto-hash of the world state observed by a peer. For instance, the consensus protocol may require to ensure that a *minimum* number of peers in the network observe the same world state.
 
-Since, computing the crypto-hash of the world state could be an expensive operation, this is highly desirable to organize the world state such that it enables an efficient crypto-hash computation of the world state when a change occurs in the world state. Further, different organization designs may be suitable under different workloads conditions.
+### 3.2.2 世界状态    
 
-Because the fabric is expected to function under a variety of scenarios leading to different workloads conditions, a pluggable mechanism is supported for organizing the world state.
+peer的*世界状态*涉及到所有被部署的链代码的*状态*集合。进一步说，链代码的状态由键值对集合来表示。所以，逻辑上说，peer的世界状态也是键值对的集合，其中键有元组`{chaincodeID, ckey}`组成。这里我们使用术语`key`来标识世界状态的键，如：元组`{chaincodeID, ckey}` ，而且我们使用`cKey`来标识链代码中的唯一键。
+
+为了下面描述的目的，假定`chaincodeID`是有效的utf8字符串，且`ckey`和`value`是一个或多个任意的字节的序列
+
+#### 3.2.2.1 世界状态的哈希
+当网络活动时，很多像交易提交和同步peer这样的场合可能需要计算peer观察到的世界状态的加密-哈希。例如，共识协议可能需要保证网络中*最小*数量的peer观察到同样的世界状态。
+
+应为计算世界状态的加密-哈希是一个非常昂贵的操作，组织世界状态来使得当它改变时能高效效的计算加密-哈希是非常可取的。将来，可以根据不同的负载条件来设计不同的组织形式。
+
+由于fabric是被期望在不同的负载条件下都能正常工作，所以需要一个可拔插的机制来支持世界状态的组织。
 
 #### 3.2.2.1.1 Bucket-tree
 
-*Bucket-tree* is one of the implementations for organizing the world state. For the purpose of the description below, a key in the world state is represented as a concatenation of the two components (`chaincodeID` and `ckey`)  separated by a `nil` byte i.e., `key` = `chaincodeID`+`nil`+`cKey`.
+*Bucket-tree* 是世界状态的组织方式的实现。为了下面描述的目的，世界状态的键被表示成两个组件(`chaincodeID` and `ckey`) 的通过nil字节的级联，如：`key` = `chaincodeID`+`nil`+`cKey`。
 
-This method models a *merkle-tree* on top of buckets of a *hash table* in order to compute the crypto-hash of the *world state*.
+这个方法的模型是一个*merkle-tree*在*hash table*桶的顶部来计算*世界状态*的加密-哈希
 
-At the core of this method, the *key-values* of the world state are assumed to be stored in a hash-table that consists of a pre-decided number of buckets (`numBuckets`). A hash function (`hashFunction`) is employed to determine the bucket number that should contain a given key. Please note that the `hashFunction` does not represent a crypto-hash method such as SHA3, rather this is a regular programming language hash function that decides the bucket number for a given key.
+这个方法的核心是世界状态的*key-values*被假定存储在由预先决定的桶的数量(`numBuckets`)所组成的哈希表中。一个哈希函数(`hashFunction`) 被用来确定包含给定键的桶数量。注意`hashFunction`不代表SHA3这样的加密-哈希方法，而是决定给定的键的桶的数量的正规的编程语言散列函数。
 
-For modeling the merkle-tree, the ordered buckets act as leaf nodes of the tree - lowest numbered bucket being the left most leaf node in the tree. For constructing the second-last level of the tree, a pre-decided number of leaf nodes (`maxGroupingAtEachLevel`), starting from left, are grouped together and for each such group, a node is inserted at the second-last level that acts as a common parent for all the leaf nodes in the group. Note that the number of children for the last parent node may be less than `maxGroupingAtEachLevel`. This grouping method of constructing the next higher level is repeated until the root node of the tree is constructed.
+为了对 merkle-tree建模，有序桶扮演了树上的叶子节点-编号最低的桶是树中的最左边的叶子节点。为了构造树的最后第二层，叶子节点的预定义数量 (`maxGroupingAtEachLevel`)，从左边开始把每个这样的分组组合在一起，一个节点被当作组中所有叶子节点的共同父节点来插入到最后第二层中。注意最后的父节点的数量可能会少于`maxGroupingAtEachLevel`这个构造方式继续使用在更高的层级上直到树的根节点被构造。
 
-An example setup with configuration `{numBuckets=10009 and maxGroupingAtEachLevel=10}` will result in a tree with number of nodes at different level as depicted in the following table.
+
+
+下面这个表展示的在`{numBuckets=10009 and maxGroupingAtEachLevel=10}`的配置下将会树得到的树在不同层级上的节点数。
 
 | Level         | Number of nodes |
 | ------------- |:---------------:|
