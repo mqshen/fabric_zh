@@ -539,6 +539,8 @@ message BlockTransactions {
   repeated Transaction transactions = 1;
 }
 ```
+
+**域的定义:**
 * `version` - 用来追踪协议变化的版本号
 * `timestamp` - 由区块提议者填充的时间戳
 * `transactionsHash` - 区块中交易的merkle root hash 
@@ -631,36 +633,40 @@ peer的*世界状态*涉及到所有被部署的链代码的*状态*集合。进
 | 4             | 1001            |
 | 5             | 10009           |
 
-For computing the crypto-hash of the world state, the crypto-hash of each bucket is computed and is assumed to be the crypto-hash of leaf-nodes of the merkle-tree. In order to compute crypto-hash of a bucket, the key-values present in the bucket are first serialized and crypto-hash function is applied on the serialized bytes. For serializing the key-values of a bucket, all the key-values with a common chaincodeID prefix are serialized separately and then appending together, in the ascending order of chaincodeIDs. For serializing the key-values of a chaincodeID, the following information is concatenated:
-   1. Length of chaincodeID (number of bytes in the chaincodeID)
-   - The utf8 bytes of the chaincodeID
-   - Number of key-values for the chaincodeID
-   - For each key-value (in sorted order of the ckey)
-      - Length of the ckey
-      - ckey bytes
-      - Length of the value
-      - value bytes
+为了计算世界状态的加密-哈希，需要计算每个桶的加密-哈希，并假设它们是merkle-tree的叶子节点的加密-哈希。为了计算桶的加密-哈希，存储在桶中的键值对首先被序列化为字节码和在其上应用加密-哈希函数。为了序列化桶的键值对，所有具有公共chaincodeID前缀的键值对分别序列化并以chaincodeID的升序的方式追加在一起。为了序列化一个chaincodeID的键值对，会涉及到下面的信息：    
 
-For all the numeric types in the above list of items (e.g., Length of chaincodeID), protobuf's varint encoding is assumed to be used. The purpose of the above encoding is to achieve a byte representation of the key-values within a bucket that can not be arrived at by any other combination of key-values and also to reduce the overall size of the serialized bytes.
+   1. chaincodeID的长度(chaincodeID的字节数)
+   - chaincodeID的utf8字节码
+   - chaincodeID的键值对数量
+   - 对于每个键值对(以ckey排序)
+      - ckey的长度
+      - ckey的字节码
+      - 值的长度
+      - 值的字节码
 
-For example, consider a bucket that contains three key-values namely, `chaincodeID1_key1:value1, chaincodeID1_key2:value2, and chaincodeID2_key1:value1`. The serialized bytes for the bucket would logically look as - `12 + chaincodeID1 + 2 + 4 + key1 + 6 + value1 + 4 + key2 + 6 + value2 + 12 + chaincodeID2 + 1 + 4 + key1 + 6 + value1`
+对于上面列表的所有数值类型项（如：chaincodeID的长度），使用protobuf的变体编码方式。上面这种编码方式的目的是为了桶中的键值对的字节表示方式不会被任意其他键值对的组合所产生，并减少了序列化字节码的总体大小。
 
-If a bucket has no key-value present, the crypto-hash is considered as `nil`.
-
-The crypto-hash of an intermediate node and root node are computed just like in a standard merkle-tree i.e., applying a crypto-hash function on the bytes obtained by concatenating the crypto-hash of all the children nodes, from left to right. Further, if a child has a crypto-hash as `nil`, the crypto-hash of the child is omitted when concatenating the children crypto-hashes. If the node has a single child, the crypto-hash of the child is assumed to be the crypto-hash of the node. Finally, the crypto-hash of the root node is considered as the crypto-hash of the world state.
-
-The above method offers performance benefits for computing crypto-hash when a few key-values change in the state. The major benefits include
-  - Computation of crypto-hashes of the unchanged buckets can be skipped
-  - The depth and breadth of the merkle-tree can be controlled by configuring the parameters `numBuckets` and `maxGroupingAtEachLevel`. Both depth and breadth of the tree has different implication on the performance cost incurred by and resource demand of different resources (namely - disk I/O, storage, and memory)
-
-In a particular deployment, all the peer nodes are expected to use same values for the configurations `numBuckets, maxGroupingAtEachLevel, and hashFunction`. Further, if any of these configurations are to be changed at a later stage, the configurations should be changed on all the peer nodes so that the comparison of crypto-hashes across peer nodes is meaningful. Also, this may require to migrate the existing data based on the implementation. For example, an implementation is expected to store the last computed crypto-hashes for all the nodes in the tree which would need to be recalculated.
+例如：考虑具有`chaincodeID1_key1:value1, chaincodeID1_key2:value2, 和 chaincodeID2_key1:value1`这样名字的键值对的桶。序列化后的桶看上去会像：`12 + chaincodeID1 + 2 + 4 + key1 + 6 + value1 + 4 + key2 + 6 + value2 + 12 + chaincodeID2 + 1 + 4 + key1 + 6 + value1`
 
 
-### 3.3 Chaincode
-Chaincode is an application-level code deployed as a transaction (see section 3.1.2) to be distributed to the network and managed by each validating peer as isolated sandbox. Though any virtualization technology can support the sandbox, currently Docker container is utilized to run the chaincode. The protocol described in this section enables different virtualization support implementation to plug and play.
+如果桶中没有键值对，那么加密-哈希为`nil`。
 
-### 3.3.1 Virtual Machine Instantiation
-A virtual machine implements the VM interface:  
+中间节点和根节点的加密-哈希与标准merkle-tree的计算方法一样，即：应用加密-哈希函数到所有子节点的加密-哈希从左到右级联后得到的字节码。进一步说，如果一个子节点的加密-哈希为`nil`，那么这个子节点的加密-哈希在级联子节点的加密-哈希是就被省略。如果它只有一个子节点，那么它的加密-哈希就是子节点的加密-哈希。最后，根节点的加密-哈希就是世界状态的加密-哈希。
+
+上面这种方法在状态中少数键值对改变时计算加密-哈希是有性能优势的。主要的优势包括：
+  - 那些没有变化的桶的计算会被跳过
+  - merkle-tree的宽度和深度可以通过配置`numBuckets`和`maxGroupingAtEachLevel`参数来控制。树的不同深度和宽度对性能和不同的资源都会产生不同的影响。
+
+在一个具体的部署中，所有的peer都期望使用相同的`numBuckets, maxGroupingAtEachLevel, 和 hashFunction`的配置。进一步说，如果任何一个配置在之后的阶段被改变，那么这些改变需要应用到所有的peer中，来保证peer节点之间的加密-哈希的比较是有意义的。即使，这可能会导致基于实现的已有数据的迁移。例如：一种实现希望存储树中所有节点最后计算的加密-哈希，那么它就需要被重新计算。
+
+
+### 3.3 链代码    
+链代码是在交易（参看3.1.2节）被部署是分发到网络上，并被所有验证peer通过隔离的沙箱来管理的应用级代码。尽管任意的虚拟技术都可以支持沙箱，现在Docker容器被用来运行链代码。这节中描述的协议可以启用不同虚拟实现的插入与运行。
+
+
+### 3.3.1 虚拟机实例化    
+一个实现VM接口的虚拟机    
+
 ```
 type VM interface {
 	build(ctxt context.Context, id string, args []string, env []string, attachstdin bool, attachstdout bool, reader io.Reader) error
@@ -668,12 +674,13 @@ type VM interface {
 	stop(ctxt context.Context, id string, timeout uint, dontkill bool, dontremove bool) error
 }
 ```
-The fabric instantiates the VM when it processes a Deploy transaction or other transactions on the chaincode while the VM for that chaincode is not running (either crashed or previously brought down due to inactivity). Each chaincode image is built by the `build` function, started by `start` and stopped by `stop` function.
+fabric会在处理链代码上的部署交易或其他交易时，如果这个链代码的VM未启动（崩溃或之前的不活动导致的关闭）时实例化VM。每个链代码镜像通过`build`函数构建，通过`start`函数启动，并使用`stop`函数停止。
 
-Once the chaincode container is up, it makes a gRPC connection back to the validating peer that started the chaincode, and that establishes the channel for Invoke and Query transactions on the chaincode.
+一旦链代码容器被启动，它使用gRPC来连接到启动这个链代码的验证peer，并为链代码上的调用和查询交易建立通道。
 
-### 3.3.2 Chaincode Protocol
-Communication between a validating peer and its chaincodes is based on a bidirectional gRPC stream. There is a shim layer on the chaincode container to handle the message protocol between the chaincode and the validating peer using protobuf message.
+### 3.3.2 链代码协议     
+验证peer和它的链代码之间是通过gRPC流来通信的。链代码容器上有shim层来处理链代码与验证peer之间的protobuf消息协议。
+
 ```
 message ChaincodeMessage {
 
@@ -705,14 +712,14 @@ message ChaincodeMessage {
 }
 ```
 
-**Definition of fields:**
-- `Type` is the type of the message.
-- `payload` is the payload of the message. Each payload depends on the `Type`.
-- `uuid` is a unique identifier of the message.
+**域的定义:**
+- `Type` 是消息的类型
+- `payload` 是消息的payload. 每个payload取决于`Type`.
+- `uuid` 消息唯一的ID
 
-The message types are described in the following sub-sections.
+消息的类型在下面的小节中描述
 
-A chaincode implements the `Chaincode` interface, which is called by the validating peer when it processes Deploy, Invoke or Query transactions.
+链代码实现被验证peer在处理部署，调用或查询交易时调用的`Chaincode`接口
 
 ```
 type Chaincode interface {
@@ -721,26 +728,26 @@ type Chaincode interface {
 }
 ```
 
-The parameters `function` and `args` point to the function implemented by the chaincode that the `Invoke` calls and passes the `args`. Similar behavior for the `Query` function. The `Query` function is not allowed to modify the state of the chaincode; it can only read and calculate the return value as a byte array.
+参数`function`和`args`指向链代码的实现的调用和传递的`args`。`Query`函数和这个一样。`Query`函数不允许改变状态；它只被允许以字节数组的方式读取和计算返回值。
 
-### 3.3.2.1 Chaincode Deploy
-Upon deploy (chaincode container is started), the shim layer sends a one time `REGISTER` message to the validating peer with the `payload` containing the `ChaincodeID`. The validating peer responds with `REGISTERED` or `ERROR` on success or failure respectively. The shim closes the connection and exits if it receives an `ERROR`.
+### 3.3.2.1 链代码部署    
+当部署时（链代码容器已经启动），shim层发送一次性的具有包含`ChaincodeID`的`payload`的`REGISTER`消息给验证peer。然后peer以`REGISTERED`或`ERROR`来响应成功或失败。当收到`ERROR`后shim关闭连接并退出。     
 
-After registration, the validating peer sends `INIT` with the `payload` containing a `ChaincodeInput` object. The shim calls the `Invoke` function with the parameters from the `ChaincodeInput`, enabling the chaincode to perform any initialization, such as setting up the persistent state.
+注册之后，验证peer发送具有包含`ChaincodeInput`对象的`INIT`消息。shim使用从`ChaincodeInput`获得的参数来调用`Invoke`函数，通过设置持久化状态这样操作来初始化链代码。
 
-The shim responds with `RESPONSE` or `ERROR` message depending on the returned value from the chaincode `Invoke` function. If there are no errors, the chaincode initialization is complete and is ready to receive Invoke and Query transactions.
+shim根据`Invoke`函数的返回值，响应`RESPONSE`或`ERROR`消息。如果没有错误，那么链代码初始化完成，并准备好接收调用和查询交易。
 
-### 3.3.2.2 Chaincode Invoke
-When processing an invoke transaction, the validating peer sends a `TRANSACTION` message to the chaincode container shim, which in turn calls the chaincode `Invoke` function, passing the parameters from the `ChaincodeInput` object. The shim responds to the validating peer with `RESPONSE` or `ERROR` message, indicating the completion of the function. If `ERROR` is received, the `payload` contains the error message generated by the chaincode.
+### 3.3.2.2 链代码调用    
+当处理调用交易时，验证peer发送`TRANSACTION`消息给链代码容器的shim，由它来调用链代码的`Invoke`函数，并传递从`ChaincodeInput`得到的参数。shim响应`RESPONSE`或`ERROR`消息来表示函数完成。如果接收到`ERROR`函数，`payload`包含链代码所产生的错误信息。
 
-### 3.3.2.3 Chaincode Query
-Similar to an invoke transaction, when processing a query, the validating peer sends a `QUERY` message to the chaincode container shim, which in turn calls the chaincode `Query` function, passing the parameters from the `ChaincodeInput` object. The `Query` function may return a state value or an error, which the shim forwards to the validating peer using `RESPONSE` or `ERROR` messages respectively.
+### 3.3.2.3 来代码查询    
+与调用交易一样，验证peer发送`QUERY`消息给链代码容器的shim，由它来调用链代码的`Query`函数，并传递从`ChaincodeInput`得到的参数。`Query`函数可能会返回状态值或错误，它会把它通过`RESPONSE`或`ERROR`消息来传递给验证peer。
 
-### 3.3.2.4 Chaincode State
-Each chaincode may define its own persistent state variables. For example, a chaincode may create assets such as TVs, cars, or stocks using state variables to hold the assets attributes. During `Invoke` function processing, the chaincode may update the state variables, for example, changing an asset owner. A chaincode manipulates the state variables by using the following message types:
+### 3.3.2.4 链代码状态    
+每个链代码可能都定义了它自己的持久化状态变量。例如，一个链代码可能创建电视，汽车或股票这样的资产来保存资产属性。当`Invoke`函数处理时，链代码可能会更新状态变量，例如改变资产所有者。链代码会根据下面这些消息类型类操作状态变量：
 
 #### PUT_STATE
-Chaincode sends a `PUT_STATE` message to persist a key-value pair, with the `payload` containing `PutStateInfo` object.
+链代码发送一个`payload`包含`PutStateInfo`对象的`PU_STATE`消息来保存键值对。
 
 ```
 message PutStateInfo {
@@ -750,13 +757,13 @@ message PutStateInfo {
 ```
 
 #### GET_STATE
-Chaincode sends a `GET_STATE` message to retrieve the value whose key is specified in the `payload`.
+链代码发送一个由`payload`指定要获取值的键的`GET_STATE`消息。
 
 #### DEL_STATE
-Chaincode sends a `DEL_STATE` message to delete the value whose key is specified in the `payload`.
+链代码发送一个由`payload`指定要删除值的键的`DEL_STATE`消息。
 
 #### RANGE_QUERY_STATE
-Chaincode sends a `RANGE_QUERY_STATE` message to get a range of values. The message `payload` contains a `RangeQueryStateInfo` object.
+链代码发送一个`payload`包含`RANGE_QUERY_STATE`对象的`RANGE_QUERY_STATE`来获取一个范围内的值。
 
 ```
 message RangeQueryState {
@@ -765,7 +772,7 @@ message RangeQueryState {
 }
 ```
 
-The `startKey` and `endKey` are inclusive and assumed to be in lexical order. The validating peer responds with `RESPONSE` message whose `payload` is a `RangeQueryStateResponse` object.
+`startKey`和`endKey`假设是通过字典排序的. 验证peer响应一个`payload`是`RangeQueryStateResponse`对象的`RESPONSE`消息
 
 ```
 message RangeQueryStateResponse {
@@ -779,7 +786,7 @@ message RangeQueryStateKeyValue {
 }
 ```
 
-If `hasMore=true` in the response, this indicates that additional keys are available in the requested range. The chaincode can request the next set of keys and values by sending a `RangeQueryStateNext` message with an ID that matches the ID returned in the response.
+如果相应中`hasMore=true`，这表示有在请求的返回中还有另外的键。链代码可以通过发送包含与响应中ID相同的ID的`RangeQueryStateNext`消息来获取下一集合
 
 ```
 message RangeQueryStateNext {
@@ -787,7 +794,7 @@ message RangeQueryStateNext {
 }
 ```
 
-When the chaincode is finished reading from the range, it should send a `RangeQueryStateClose` message with the ID it wishes to close.
+当链代码结束读取范围，它会发送带有ID的`RangeQueryStateClose`消息来期望它关闭。
 
 ```
 message RangeQueryStateClose {
@@ -796,49 +803,48 @@ message RangeQueryStateClose {
 ```
 
 #### INVOKE_CHAINCODE
-Chaincode may call another chaincode in the same transaction context by sending an `INVOKE_CHAINCODE` message to the validating peer with the `payload` containing a `ChaincodeSpec` object.
+链代码可以通过发送`payload`包含 `ChaincodeSpec`对象的`INVOKE_CHAINCODE`消息给验证peer来在相同的交易上下文中调用另一个链代码
 
 #### QUERY_CHAINCODE
-Chaincode may query another chaincode in the same transaction context by sending a `QUERY_CHAINCODE` message with the `payload` containing a `ChaincodeSpec` object.
+链代码可以通过发送`payload`包含 `ChaincodeSpec`对象的`QUERY_CHAINCODE`消息给验证peer来在相同的交易上下文中查询另一个链代码
 
 
-### 3.4 Pluggable Consensus Framework
+### 3.4 插拔式共识框架
 
-The consensus framework defines the interfaces that every consensus _plugin_ implements:
+共识框架定义了每个共识插件都需要实现的接口：
 
-  - `consensus.Consenter`: interface that  allows consensus plugin to receive messages from the network.
-  - `consensus.CPI`:  _Consensus Programming Interface_ (`CPI`) is used by consensus plugin to interact with rest of the stack. This interface is split in two parts:
-	  - `consensus.Communicator`: used to send (broadcast and unicast) messages to other validating peers.
-	  - `consensus.LedgerStack`: which is used as an interface to the execution framework as well as the ledger.
+  - `consensus.Consenter`: 允许共识插件从网络上接收消息的接口
+  - `consensus.CPI`:  共识编程接口_Consensus Programming Interface_ (`CPI`) 是共识插件用来与栈交互的，这个接口可以分为两部分：
+	  - `consensus.Communicator`: 用来发送（广播或单播）消息到其他的验证peer
+	  - `consensus.LedgerStack`: 这个接口使得执行框架像总账一样方便
 
-As described below in more details, `consensus.LedgerStack` encapsulates, among other interfaces, the `consensus.Executor` interface, which is the key part of the consensus framework. Namely, `consensus.Executor` interface allows for a (batch of) transaction to be started, executed, rolled back if necessary, previewed, and potentially committed. A particular property that every consensus plugin needs to satisfy is that batches (blocks)  of transactions are committed to the ledger (via `consensus.Executor.CommitTxBatch`) in total order across all validating peers (see `consensus.Executor` interface description below for more details).
+就像下面描述的细节一样，`consensus.LedgerStack`封装了其他接口，`consensus.Executor`接口是共识框架的核心部分。换句话说，`consensus.Executor`接口允许一个（批量）交易启动，执行，根据需要回滚，预览和提交。每一个共识插件都需要满足以所有验证peer上全序的方式把批量（块）交易（通过`consensus.Executor.CommitTxBatch`）被提交到总账中（参看下面的`consensus.Executor`接口获得详细细节）。
 
-Currently, consensus framework consists of 3 packages `consensus`, `controller`, and `helper`. The primary reason for `controller` and `helper` packages is to avoid "import cycle" in Go (golang) and minimize code changes for plugin to update.
+当前，共识框架由`consensus`, `controller`和`helper`这三个包组成。使用`controller`和`helper`包的主要原因是防止Go语言的“循环引入”和当插件更新是的最小化代码变化。
 
-- `controller` package specifies the consensus plugin used by a validating peer.
-- `helper` package is a shim around a consensus plugin that helps it interact with the rest of the stack, such as maintaining message handlers to other peers.  
+- `controller` 包规范了验证peer所使用的共识插件
+- `helper` 是围绕公式插件的垫片，它是用来与剩下的栈交互的，如为其他peer维护消息。
 
-There are 2 consensus plugins provided: `pbft` and `noops`:
+这里有2个共识插件提供：`pbft`和`noops`：
 
--  `obcpbft` package contains consensus plugin that implements *PBFT* [1] and *Sieve* consensus protocols. See section 5 for more detail.
--  `noops` is a ''dummy'' consensus plugin for development and test purposes. It doesn't perform consensus but processes all consensus messages. It also serves as a good simple sample to start learning how to code a consensus plugin.
+-  `obcpbft`包包含实现 *PBFT* [1] 和 *Sieve* 共识协议的共识插件。参看第5节的详细介绍
+-  `noops` 是一个为开发和测试提供的''假的''共识插件. 它处理所有共识消息但不提供共识功能，它也是一个好的学习如何开发一个共识插件的简单例子。
 
+### 3.4.1 `Consenter` 接口
 
-### 3.4.1 `Consenter` interface
-
-Definition:
+定义:
 ```
 type Consenter interface {
 	RecvMsg(msg *pb.Message) error
 }
 ```
-The plugin's entry point for (external) client requests, and consensus messages generated internally (i.e. from the consensus module) during the consensus process. The `controller.NewConsenter` creates the plugin `Consenter`. `RecvMsg` processes the incoming transactions in order to reach consensus.
+`Consenter`接口是插件对（外部的）客户端请求的入口，当处理共识时，共识消息在内部（如从共识模块）产生。NewConsenter`创建`Consenter`插件。`RecvMsg`以到达共识的顺序来处理进来的交易。
 
-See `helper.HandleMessage` below to understand how the peer interacts with this interface.
+阅读下面的`helper.HandleMessage`来理解peer是如何和这个接口来交互的。
 
-### 3.4.2 `CPI` interface
+### 3.4.2 `CPI`接口    
 
-Definition:
+定义:
 ```
 type CPI interface {
 	Inquirer
@@ -847,23 +853,24 @@ type CPI interface {
 	LedgerStack
 }
 ```
-`CPI` allows the plugin to interact with the stack. It is implemented by the `helper.Helper` object. Recall that this object:
+`CPI` 允许插件和栈交互。它是由`helper.Helper`对象实现的。回想一下这个对象是：
 
-  1. Is instantiated when the `helper.NewConsensusHandler` is called.
-  2. Is accessible to the plugin author when they construct their plugin's `consensus.Consenter` object.
+  1. 在`helper.NewConsensusHandler`被调用时初始化的
+  2. 当它们的插件构造了`consensus.Consenter`对象，那么它对插件的作者是可访问的
 
-### 3.4.3 `Inquirer` interface
 
-Definition:
+### 3.4.3 `Inquirer`接口
+
+定义:
 ```
 type Inquirer interface {
         GetNetworkInfo() (self *pb.PeerEndpoint, network []*pb.PeerEndpoint, err error)
         GetNetworkHandles() (self *pb.PeerID, network []*pb.PeerID, err error)
 }
 ```
-This interface is a part of the `consensus.CPI` interface. It is used to get the handles of the validating peers in the network (`GetNetworkHandles`) as well as details about the those validating peers (`GetNetworkInfo`):
+这个接口是`consensus.CPI`接口的一部分。它是用来获取网络中验证peer的（`GetNetworkHandles`）处理，以及那些验证peer的明细(`GetNetworkInfo`)：
 
-Note that the peers are identified by a `pb.PeerID` object. This is a protobuf message (in the `protos` package), currently defined as (notice that this definition will likely be modified):
+注意pees由`pb.PeerID`对象确定。这是一个protobuf消息，当前定义为（注意这个定义很可能会被修改）：
 
 ```
 message PeerID {
@@ -871,9 +878,9 @@ message PeerID {
 }
 ```
 
-### 3.4.4 `Communicator` interface
+### 3.4.4 `Communicator`接口
 
-Definition:
+定义:
 
 ```
 type Communicator interface {
@@ -881,12 +888,11 @@ type Communicator interface {
 	Unicast(msg *pb.Message, receiverHandle *pb.PeerID) error
 }
 ```
+这个接口是`consensus.CPI`接口的一部分。它是用来与网络上其它peer通信的（`helper.Broadcast`, `helper.Unicast`）：
 
-This interface is a part of the `consensus.CPI` interface. It is used to communicate with other peers on the network (`helper.Broadcast`, `helper.Unicast`):
+### 3.4.5 `SecurityUtils`接口 
 
-### 3.4.5 `SecurityUtils` interface
-
-Definition:
+定义:
 
 ```
 type SecurityUtils interface {
@@ -895,11 +901,12 @@ type SecurityUtils interface {
 }
 ```
 
-This interface is a part of the `consensus.CPI` interface. It is used to handle the cryptographic operations of message signing (`Sign`) and verifying signatures (`Verify`)
+这个接口是`consensus.CPI`接口的一部分。它用来处理消息签名(`Sign`)的加密操作和验证签名(`Verify`)
 
-### 3.4.6 `LedgerStack` interface
 
-Definition:
+### 3.4.6 `LedgerStack` 接口
+
+定义:
 
 ```
 type LedgerStack interface {
@@ -908,12 +915,11 @@ type LedgerStack interface {
 	RemoteLedgers
 }
 ```
+`CPI`接口的主要成员，`LedgerStack` 组与fabric的其它部分与共识相互作用，如执行交易，查询和更新总账。这个接口支持对本地区块链和状体的查询，更新本地区块链和状态，查询共识网络上其它节点的区块链和状态。它是有`Executor`, `Ledger`和`RemoteLedgers`这三个接口组成的。下面会描述它们。
 
-A key member of the `CPI` interface, `LedgerStack` groups interaction of consensus with the rest of the fabric, such as the execution of transactions, querying, and updating the ledger.  This interface supports querying the local blockchain and state, updating the local blockchain and state, and querying the blockchain and state of other nodes in the consensus network. It consists of three parts: `Executor`, `Ledger` and `RemoteLedgers` interfaces. These are described in the following.
+### 3.4.7 `Executor` 接口
 
-### 3.4.7 `Executor` interface
-
-Definition:
+定义:
 
 ```
 type Executor interface {
@@ -924,49 +930,47 @@ type Executor interface {
 	PreviewCommitTxBatchBlock(id interface{}, transactions []*pb.Transaction, metadata []byte) (*pb.Block, error)  
 }
 ```
+executor接口是`LedgerStack`接口最常使用的部分，且是共识网络工作的必要部分。接口允许交易启动，执行，根据需要回滚，预览和提交。这个接口由下面这些方法组成。
 
-The executor interface is the most frequently utilized portion of the `LedgerStack` interface, and is the only piece which is strictly necessary for a consensus network to make progress.  The interface allows for a transaction to be started, executed, rolled back if necessary, previewed, and potentially committed.  This interface is comprised of the following methods.
-
-#### 3.4.7.1 Beginning a transaction batch
+#### 3.4.7.1 开始批量交易
 
 ```
 BeginTxBatch(id interface{}) error
 ```
+这个调用接受任意的，故意含糊的`id`，来使得共识插件可以保证与这个具体的批量相关的交易才会被执行。例如：在pbft实现中，这个`id`是被执行交易的编码过的哈希。
 
-This call accepts an arbitrary `id`, deliberately opaque, as a way for the consensus plugin to ensure only the transactions associated with this particular batch are executed. For instance, in the pbft implementation, this `id` is the an encoded hash of the transactions to be executed.
-
-#### 3.4.7.2 Executing transactions
+#### 3.4.7.2 执行交易    
 
 ```
 ExecTXs(id interface{}, txs []*pb.Transaction) ([]byte, []error)
 ```
 
-This call accepts an array of transactions to execute against the current state of the ledger and returns the current state hash in addition to an array of errors corresponding to the array of transactions.  Note that a transaction resulting in an error has no effect on whether a transaction batch is safe to commit.  It is up to the consensus plugin to determine the behavior which should occur when failing transactions are encountered.  This call is safe to invoke multiple times.
+这个调用根据总账当前的状态接受一组交易，并返回带有对应着交易组的错误信息组的当前状态的哈希。注意一个交易所产生的错误不影响批量交易的安全提交。当遇到失败所采用的策略取决与共识插件的实现。这个接口调用多次是安全的。
 
-#### 3.4.7.3 Committing and rolling-back transactions
+#### 3.4.7.3 提交与回滚交易
 
 ```
 RollbackTxBatch(id interface{}) error
 ```
 
-This call aborts an execution batch.  This will undo the changes to the current state, and restore the ledger to its previous state.  It concludes the batch begun with `BeginBatchTx` and a new one must be created before executing any transactions.
+这个调用忽略了批量执行。这会废弃掉对当前状态的操作，并把总账状态回归到之前的状态。批量是从`BeginBatchTx`开始的，如果需要开始一个新的就需要在执行任意交易之前重新创建一个。
 
 ```
 PreviewCommitTxBatchBlock(id interface{}, transactions []*pb.Transaction, metadata []byte) (*pb.Block, error)
 ```
 
-This call is most useful for consensus plugins which wish to test for non-deterministic transaction execution.  The hashable portions of the block returned are guaranteed to be identical to the block which would be committed if `CommitTxBatch` were immediately invoked.  This guarantee is violated if any new transactions are executed.
+这个调用是共识插件对非确定性交易执行的测试时最有用的方法。区块返回的哈希表部分会保证，当`CommitTxBatch`被立即调用时的区块是同一个。这个保证会被任意新的交易的执行所打破。
 
 ```
 CommitTxBatch(id interface{}, transactions []*pb.Transaction, transactionsResults []*pb.TransactionResult, metadata []byte) error
 ```
 
-This call commits a block to the blockchain.  Blocks must be committed to a blockchain in total order. ``CommitTxBatch`` concludes the transaction batch, and a new call to `BeginTxBatch` must be made before any new transactions are executed and committed.
+这个调用提交区块到区块链中。区块必须以全序提交到区块链中，``CommitTxBatch``结束批量交易，在执行或提交任意的交易之前必须先调用`BeginTxBatch`。
 
 
-### 3.4.8 `Ledger` interface
+### 3.4.8 `Ledger` 接口
 
-Definition:
+定义：
 
 ```
 type Ledger interface {
@@ -976,11 +980,11 @@ type Ledger interface {
 }
 ```
 
-``Ledger`` interface is intended to allow the consensus plugin to interrogate and possibly update the current state and blockchain. It is comprised of the three interfaces described below.
+``Ledger`` 接口是为了允许共识插件询问或可能改变区块链当前状态。它是由下面描述的三个接口组成的
 
-#### 3.4.8.1 `ReadOnlyLedger` interface
+#### 3.4.8.1 `ReadOnlyLedger` 接口
 
-Definition:
+定义：
 
 ```
 type ReadOnlyLedger interface {
@@ -990,33 +994,33 @@ type ReadOnlyLedger interface {
 }
 ```
 
-`ReadOnlyLedger` interface is intended to query the local copy of the ledger without the possibility of modifying it.  It is comprised of the following functions.
+`ReadOnlyLedger` 接口是为了查询总账的本地备份，而不会修改它。它是由下面这些函数组成的。
 
 ```
 GetBlockchainSize() (uint64, error)
 ```
 
-This call returns the current length of the blockchain ledger.  In general, this function should never fail, though in the unlikely event that this occurs, the error is passed to the caller to decide what if any recovery is necessary.  The block with the highest number will have block number `GetBlockchainSize()-1`.  
+这个函数返回区块链总账的长度。一般来说，这个函数永远不会失败，在这种不太可能发生情况下，错误被传递给调用者，由它确定是否需要恢复。具有最大区块值的区块的值为`GetBlockchainSize()-1`
 
-Note that in the event that the local copy of the blockchain ledger is corrupt or incomplete, this call will return the highest block number in the chain, plus one.  This allows for a node to continue operating from the current state/block even when older blocks are corrupt or missing.
+注意在区块链总账的本地副本是腐坏或不完整的情况下，这个调用会返回链中最大的区块值+1。这允许节点在旧的块是腐坏或丢失的情况下能继续操作当前状态/块。
 
 ```
 GetBlock(id uint64) (block *pb.Block, err error)
 ```
 
-This call returns the block from the blockchain with block number `id`.  In general, this call should not fail, except when the block queried exceeds the current blocklength, or when the underlying blockchain has somehow become corrupt.  A failure of `GetBlock` has a possible resolution of using the state transfer mechanism to retrieve it.
+这个调用返回区块链中块的数值`id`。一般来说这个调用是不会失败的，除非请求的区块超出当前区块链的长度，或者底层的区块链被腐坏了。`GetBlock`的失败可能可以通过状态转换机制来取回它。
 
 
 ```
 GetCurrentStateHash() (stateHash []byte, err error)
 ```
 
-This call returns the current state hash for the ledger.  In general, this function should never fail, though in the unlikely event that this occurs, the error is passed to the caller to decide what if any recovery is necessary.
+这个盗用返回总账的当前状态的哈希。一般来说，这个函数永远不会失败，在这种不太可能发生情况下，错误被传递给调用者，由它确定是否需要恢复。
 
 
-#### 3.4.8.2 `UtilLedger` interface
+#### 3.4.8.2 `UtilLedger` 接口
 
-Definition:
+定义：
 
 ```
 type UtilLedger interface {
@@ -1025,25 +1029,24 @@ type UtilLedger interface {
 }
 ```
 
-`UtilLedger`  interface defines some useful utility functions which are provided by the local ledger.  Overriding these functions in a mock interface can be useful for testing purposes.  This interface is comprised of two functions.
+`UtilLedger` 接口定义了一些由本地总账提供的有用的功能。使用mock接口来重载这些功能在测试时非常有用。这个接口由两个函数构成。
 
 ```
 HashBlock(block *pb.Block) ([]byte, error)
 ```
 
-Although `*pb.Block` has a `GetHash` method defined, for mock testing, overriding this method can be very useful.  Therefore, it is recommended that the `GetHash` method never be directly invoked, but instead invoked via this `UtilLedger.HashBlock` interface.  In general, this method should never fail, but the error is still passed to the caller to decide what if any recovery is appropriate.
+尽管`*pb.Block`定义了`GetHash`方法，为了mock测试，重载这个方法会非常有用。因此，建议`GetHash`方法不直接调用，而是通过`UtilLedger.HashBlock`接口来调用这个方法。一般来说，这个函数永远不会失败，但是错误还是会传递给调用者，让它决定是否使用适当的恢复。
 
 ```
 VerifyBlockchain(start, finish uint64) (uint64, error)
 ```
 
-This utility method is intended for verifying large sections of the blockchain.  It proceeds from a high block `start` to a lower block `finish`, returning the block number of the first block whose `PreviousBlockHash` does not match the block hash of the previous block as well as an error.  Note, this generally indicates the last good block number, not the first bad block number.
+这个方法是用来校验区块链中的大的区域。它会从高的块`start`到低的块`finish`，返回第一个块的`PreviousBlockHash`与块的前一个块的哈希不相符的块编号以及错误信息。注意，它一般会标识最后一个好的块的编号，而不是第一个坏的块的编号。
 
 
+#### 3.4.8.3 `WritableLedger` 接口
 
-#### 3.4.8.3 `WritableLedger` interface
-
-Definition:
+定义：
 
 ```
 type WritableLedger interface {
@@ -1055,35 +1058,34 @@ type WritableLedger interface {
 }
 ```
 
-`WritableLedger`  interface allows for the caller to update the blockchain.  Note that this is _NOT_ intended for use in normal operation of a consensus plugin.  The current state should be modified by executing transactions using the `Executor` interface, and new blocks will be generated when transactions are committed.  This interface is instead intended primarily for state transfer or corruption recovery.  In particular, functions in this interface should _NEVER_ be exposed directly via consensus messages, as this could result in violating the immutability promises of the blockchain concept.  This interface is comprised of the following functions.
+`WritableLedger`  接口允许调用者更新区块链。注意这_NOT_ _不是_共识插件的通常用法。当前的状态需要通过`Executor`接口执行交易来修改，新的区块在交易提交时生成。相反的，这个接口主要是用来状态改变和腐化恢复。特别的，这个接口下的函数_永远_不能直接暴露给共识消息，这样会导致打破区块链所承诺的不可修改这一概念。这个结构包含下面这些函数。
 
   -
   	```
 	PutBlock(blockNumber uint64, block *pb.Block) error
 	```
-
-	This function takes a provided, raw block, and inserts it into the blockchain at the given blockNumber.  Note that this intended to be an unsafe interface, so no error or sanity checking is performed.  Inserting a block with a number higher than the current block height is permitted, similarly overwriting existing already committed blocks is also permitted.  Remember, this does not affect the auditability or immutability of the chain, as the hashing techniques make it computationally infeasible to forge a block earlier in the chain.  Any attempt to rewrite the blockchain history is therefore easily detectable.  This is generally only useful to the state transfer API.
+     这个函数根据给定的区块编号吧底层区块插入到区块链中。注意这是一个不安全的接口，所以它不会有错误返回或返回。插入一个比当前区块高度更高的区块是被允许的，通用，重写一个已经提交的区块也是被允许的。记住，由于哈希技术使得创建一个链上的更早的块是不可行的，所以这并不影响链的可审计性和不可变性。任何尝试重写区块链的历史的操作都能很容易的被侦测到。这个函数一般只用于状态转移API。
 
   -
   	```
 	ApplyStateDelta(id interface{}, delta *statemgmt.StateDelta) error
 	```
 
-	This function takes a state delta, and applies it to the current state.  The delta will be applied to transition a state forward or backwards depending on the construction of the state delta.  Like the `Executor` methods, `ApplyStateDelta` accepts an opaque interface `id` which should also be passed into `CommitStateDelta` or `RollbackStateDelta` as appropriate.
+    这个函数接收状态变化，并把它应用到当前的状态。变化量的应用会使得状态向前或向后转变，这取决于状态变化量的构造，与`Executor`方法一样，`ApplyStateDelta`接受一个同样会被传递给`CommitStateDelta` or `RollbackStateDelta`不透明的接口`id`
 
   -
  	```
 	CommitStateDelta(id interface{}) error
 	```
 
-	This function commits the state delta which was applied in `ApplyStateDelta`.  This is intended to be invoked after the caller to `ApplyStateDelta` has verified the state via the state hash obtained via `GetCurrentStateHash()`.  This call takes the same `id` which was passed into `ApplyStateDelta`.
+    这个方法提交在`ApplyStateDelta`中应用的状态变化。这通常是在调用者调用`ApplyStateDelta`后通过校验由`GetCurrentStateHash()`获得的状态哈希之后调用的。这个函数接受与传递给`ApplyStateDelta`一样的`id`。
 
   -
   	```
 	RollbackStateDelta(id interface{}) error
 	```
 
-	This function unapplies a state delta which was applied in `ApplyStateDelta`.  This is intended to be invoked after the caller to `ApplyStateDelta` has detected the state hash obtained via `GetCurrentStateHash()` is incorrect.  This call takes the same `id` which was passed into `ApplyStateDelta`.
+    这个函数撤销在`ApplyStateDelta`中应用的状态变化量。这通常是在调用者调用`ApplyStateDelta`后与由`GetCurrentStateHash()`获得的状态哈希校验失败后调用的。这个函数接受与传递给`ApplyStateDelta`一样的`id`。
 
 
   -
@@ -1091,11 +1093,11 @@ type WritableLedger interface {
    	EmptyState() error
    	```
 
-	This function will delete the entire current state, resulting in a pristine empty state.  It is intended to be called before loading an entirely new state via deltas.  This is generally only useful to the state transfer API.
+    这个函数将会删除整个当前状态，得到原始的空状态。这通常是通过变化量加载整个新的状态是调用的。这一样只对状态转移API有用。
 
-### 3.4.9 `RemoteLedgers` interface
+### 3.4.9 `RemoteLedgers` 接口
 
-Definition:
+定义：
 
 ```
 type RemoteLedgers interface {
@@ -1105,54 +1107,55 @@ type RemoteLedgers interface {
 }
 ```
 
-The `RemoteLedgers` interface exists primarily to enable state transfer and to interrogate the blockchain state at  other replicas.  Just like the `WritableLedger` interface, it is not intended to be used in normal operation and is designed to be used for catchup, error recovery, etc.  For all functions in this interface it is the caller's responsibility to enforce timeouts.  This interface contains the following functions.
+`RemoteLedgers` 接口的存在主要是为了启用状态转移，和想其它副本询问区块链的状态。和`WritableLedger`接口一样，这不是给正常的操作使用，而是为追赶，错误恢复等操作而设计的。这个接口中的所有函数调用这都有责任来处理超时。这个接口包含下面这些函数：
 
   -  
   	```
   	GetRemoteBlocks(peerID uint64, start, finish uint64) (<-chan *pb.SyncBlocks, error)
   	```
 
-	This function attempts to retrieve a stream of `*pb.SyncBlocks` from the peer designated by `peerID` for the range from `start` to `finish`.  In general, `start` should be specified with a higher block number than `finish`, as the blockchain must be validated from end to beginning.  The caller must validate that the desired block is being returned, as it is possible that slow results from another request could appear on this channel.  Invoking this call for the same `peerID` a second time will cause the first channel to close.
+    这个函数尝试从由`peerID`指定的peer中取出由`start`和`finish`标识的范围中的`*pb.SyncBlocks`流。一般情况下，由于区块链必须是从结束到开始这样的顺序来验证的，所以`start`是比`finish`更高的块编号。由于慢速的结构，其它请求的返回可能出现在这个通道中，所以调用者必须验证返回的是期望的块。第二次以同样的`peerID`来调用这个方法会导致第一次的通道关闭。
+
 
   -  
   	```
    	GetRemoteStateSnapshot(peerID uint64) (<-chan *pb.SyncStateSnapshot, error)
    	```
 
-	This function attempts to retrieve a stream of `*pb.SyncStateSnapshot` from the peer designated by `peerID`.  To apply the result, the existing state should first be emptied via the `WritableLedger` `EmptyState` call, then the contained deltas in the stream should be applied sequentially.
+    这个函数尝试从由`peerID`指定的peer中取出`*pb.SyncStateSnapshot`流。为了应用结果，首先需要通过`WritableLedger`的`EmptyState`调用来清空存在在状态，然后顺序应用包含在流中的变化量。
 
   -
   	```
    	GetRemoteStateDeltas(peerID uint64, start, finish uint64) (<-chan *pb.SyncStateDeltas, error)
    	```
 
-	This function attempts to retrieve a stream of `*pb.SyncStateDeltas` from the peer designated by `peerID` for the range from `start` to `finish`.  The caller must validated that the desired block delta is being returned, as it is possible that slow results from another request could appear on this channel.  Invoking this call for the same `peerID` a second time will cause the first channel to close.
+    这个函数尝试从由`peerID`指定的peer中取出由`start`和`finish`标识的范围中的`*pb.SyncStateDeltas`流。由于慢速的结构，其它请求的返回可能出现在这个通道中，所以调用者必须验证返回的是期望的块变化量。第二次以同样的`peerID`来调用这个方法会导致第一次的通道关闭。
 
-### 3.4.10 `controller` package
+
+### 3.4.10 `controller`包    
 
 #### 3.4.10.1 controller.NewConsenter
 
-Signature:
+签名:
 
 ```
 func NewConsenter(cpi consensus.CPI) (consenter consensus.Consenter)
 ```
+这个函数读取为`peer`过程指定的`core.yaml`配置文件中的`peer.validator.consensus`的值。键`peer.validator.consensus`的有效值指定运行`noops`还是`obcpbft`共识。（注意，它最终被改变为`noops`或`custom`。在`custom`情况下，验证peer将会运行由`consensus/config.yaml`中定义的共识插件）
 
-This function reads the `peer.validator.consensus` value in `core.yaml` configuration file, which is the  configuration file for the `peer` process. The value of the `peer.validator.consensus` key defines whether the validating peer will run with the `noops` consensus plugin or the `obcpbft` one. (Notice that this should eventually be changed to either `noops` or `custom`. In case of `custom`, the validating peer will run with the consensus plugin defined in `consensus/config.yaml`.)
+插件的作者需要编辑函数体，来保证路由到它们包中正确的构造函数。例如，对于`obcpbft` 我们指向`obcpft.GetPlugin`构造器。
 
-The plugin author needs to edit the function's body so that it routes to the right constructor for their package. For example, for `obcpbft` we point to the `obcpft.GetPlugin` constructor.
+这个函数是当设置返回信息处理器的`consenter`域时，被`helper.NewConsensusHandler`调用的。输入参数`cpi`是由`helper.NewHelper`构造器输出的，并实现了`consensus.CPI`接口
 
-This function is called by `helper.NewConsensusHandler` when setting the `consenter` field of the returned message handler. The input argument `cpi` is the output of the `helper.NewHelper` constructor and implements the `consensus.CPI` interface.
+### 3.4.11 `helper`包  
 
-### 3.4.11 `helper` package
+#### 3.4.11.1 高层次概述    
 
-#### 3.4.11.1 High-level overview
-
-A validating peer establishes a message handler (`helper.ConsensusHandler`) for every connected peer, via the `helper.NewConsesusHandler` function (a handler factory). Every incoming message is inspected on its type (`helper.HandleMessage`); if it's a message for which consensus needs to be reached, it's passed on to the peer's consenter object (`consensus.Consenter`). Otherwise it's passed on to the next message handler in the stack.
+验证peer通过`helper.NewConsesusHandler`函数(一个处理器工厂)，为每个连接的peer建立消息处理器(`helper.ConsensusHandler`)。每个进来的消息都会检查它的类型(`helper.HandleMessage`)；如果这是为了共识必须到达的消息，它会传递到peer的共识对象(`consensus.Consenter`)。其它的信息会传递到栈中的下一个信息处理器。
 
 #### 3.4.11.2 helper.ConsensusHandler
 
-Definition:
+定义：
 
 ```
 type ConsensusHandler struct {
@@ -1164,23 +1167,24 @@ type ConsensusHandler struct {
 }
 ```
 
-Within the context of consensus, we focus only on the `coordinator` and `consenter` fields. The `coordinator`, as the name implies, is used to coordinate between the peer's message handlers. This is, for instance, the object that is accessed when the peer wishes to `Broadcast`. The `consenter` receives the messages for which consensus needs to be reached and processes them.
+共识中的上下文，我们只关注域`coordinator`和`consenter`。`coordinator`就像名字隐含的那样，它被用来在peer的信息处理器之间做协调。例如，当peer希望`Broadcast`时，对象被访问。共识需要到达的共识者会接收到消息并处理它们。
 
-Notice that `fabric/peer/peer.go` defines the `peer.MessageHandler` (interface), and `peer.MessageHandlerCoordinator` (interface) types.
+注意，`fabric/peer/peer.go`定义了`peer.MessageHandler` (接口)，和`peer.MessageHandlerCoordinator`（接口）类型。
 
 #### 3.4.11.3 helper.NewConsensusHandler
 
-Signature:
+签名:
 
 ```
 func NewConsensusHandler(coord peer.MessageHandlerCoordinator, stream peer.ChatStream, initiatedStream bool, next peer.MessageHandler) (peer.MessageHandler, error)
 ```
 
-Creates a `helper.ConsensusHandler` object. Sets the same `coordinator` for every message handler. Also sets the `consenter` equal to: `controller.NewConsenter(NewHelper(coord))`
+创建一个`helper.ConsensusHandler`对象。为每个`coordinator`设置同样的消息处理器。同时把`consenter`设置为`controller.NewConsenter(NewHelper(coord))`
+
 
 ### 3.4.11.4 helper.Helper
 
-Definition:
+定义:
 
 ```
 type Helper struct {
@@ -1188,22 +1192,22 @@ type Helper struct {
 }
 ```
 
-Contains the reference to the validating peer's `coordinator`. Is the object that implements the `consensus.CPI` interface for the peer.
+包含验证peer的`coordinator`的引用。对象是否为peer实现了`consensus.CPI`接口。
 
 #### 3.4.11.5 helper.NewHelper
 
-Signature:
+签名:
 
 ```
 func NewHelper(mhc peer.MessageHandlerCoordinator) consensus.CPI
 ```
 
-Returns a `helper.Helper` object whose `coordinator` is set to the input argument `mhc` (the `coordinator` field of the `helper.ConsensusHandler` message handler). This object implements the `consensus.CPI` interface, thus allowing the plugin to interact with the stack.
+返回`coordinator`被设置为输入参数`mhc`（`helper.ConsensusHandler`消息处理器的`coordinator`域）的`helper.Helper`对象。这个对象实现了`consensus.CPI`接口，从而允许插件与栈进行交互。
 
 
 #### 3.4.11.6 helper.HandleMessage
 
-Recall that the `helper.ConsesusHandler` object returned by `helper.NewConsensusHandler` implements the `peer.MessageHandler` interface:
+回忆一下，`helper.NewConsensusHandler`返回的`helper.ConsesusHandler`对象实现了 `peer.MessageHandler` 接口：
 
 ```
 type MessageHandler interface {
@@ -1215,21 +1219,21 @@ type MessageHandler interface {
 }
 ```
 
-Within the context of consensus, we focus only on the `HandleMessage` method. Signature:
+在共识的上下文中，我们只关心`HandleMessage`方法。签名：
 
 ```
 func (handler *ConsensusHandler) HandleMessage(msg *pb.Message) error
 ```
 
-The function inspects the `Type` of the incoming `Message`. There are four cases:
+这个函数检查进来的`Message`的`Type`。有四种情况：
 
-  1. Equal to `pb.Message_CONSENSUS`: passed to the handler's `consenter.RecvMsg` function.
-  2. Equal to `pb.Message_CHAIN_TRANSACTION` (i.e. an external deployment request): a response message is sent to the user first, then the message is passed to the `consenter.RecvMsg` function.
-  3. Equal to `pb.Message_CHAIN_QUERY` (i.e. a query): passed to the `helper.doChainQuery` method so as to get executed locally.
-  4. Otherwise: passed to the `HandleMessage` method of the next handler down the stack.
+  1. 等于`pb.Message_CONSENSUS`：传递给处理器的`consenter.RecvMsg`函数。
+  2. 等于`pb.Message_CHAIN_TRANSACTION` (如：一个外部部署的请求): 一个响应请求首先被发送给用户，然后把消息传递给`consenter.RecvMsg`函数
+  3. 等于`pb.Message_CHAIN_QUERY` (如：查询): 传递给`helper.doChainQuery`方法来在本地执行
+  4. 其它: 传递给栈中下一个处理器的`HandleMessage`方法
 
 
-### 3.5 Events
+### 3.5 事件    
 The event framework provides the ability to generate and consume predefined and custom events. There are 3 basic components:
   - Event stream
   - Event adapters
