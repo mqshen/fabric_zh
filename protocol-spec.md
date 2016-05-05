@@ -1234,23 +1234,23 @@ func (handler *ConsensusHandler) HandleMessage(msg *pb.Message) error
 
 
 ### 3.5 事件    
-The event framework provides the ability to generate and consume predefined and custom events. There are 3 basic components:
-  - Event stream
-  - Event adapters
-  - Event structures
+事件框架提供了生产和消费预定义或自定义的事件的能力。它有3个基础组件：    
+  - 事件流
+  - 事件适配器
+  - 事件结构
 
-#### 3.5.1 Event Stream
-An event stream is a gRPC channel capable of sending and receiving events. Each consumer establishes an event stream to the event framework and expresses the events that it is interested in. the event producer only sends appropriate events to the consumers who have connected to the producer over the event stream.
+#### 3.5.1 事件流
+事件流是用来发送和接收事件的gRPC通道。每个消费者会与事件框架建立事件流，并快速传递它感兴趣的事件。事件生成者通过事件流只发送合适的事件给连接到生产者的消费者。
 
-The event stream initializes the buffer and timeout parameters. The buffer holds the number of events waiting for delivery, and the timeout has 3 options when the buffer is full:
+事件流初始化缓冲和超时参数。缓冲保存着几个等待投递的事件，超时参数在缓冲满时有三个选项：
 
-- If timeout is less than 0, drop the newly arriving events
-- If timeout is 0, block on the event until the buffer becomes available
-- If timeout is greater than 0, wait for the specified timeout and drop the event if the buffer remains full after the timeout
+- 如果超时小于0，丢弃新到来的事件
+- 如果超时等于0，阻塞事件知道缓冲再次可用
+- 如果超时大于0，等待指定的超时时间，如果缓冲还是满的话就丢弃事件
 
 
-#### 3.5.1.1 Event Producer
-The event producer exposes a function to send an event, `Send(e *pb.Event)`, where `Event` is either a pre-defined `Block` or a `Generic` event. More events will be defined in the future to include other elements of the fabric.
+#### 3.5.1.1 事件生产者     
+事件生产者暴露函数`Send(e *pb.Event)`来发送事件，其中`Event`可以是预定义的`Block`或`Generic`事件。将来会定义更多的事件来包括其它的fabric元素。
 
 ```
 message Generic {
@@ -1259,10 +1259,10 @@ message Generic {
 }
 ```
 
-The `eventType` and `payload` are freely defined by the event producer. For example, JSON data may be used in the `payload`. The `Generic` event may also be emitted by the chaincode or plugins to communicate with consumers.
+`eventType`和`payload`是由事件生产者任意定义的。例如，JSON数据可能被用在`payload`中。链代码或插件发出`Generic`事件来与消费者通讯。
 
-#### 3.5.1.2 Event Consumer
-The event consumer enables external applications to listen to events. Each event consumer registers an event adapter with the event stream. The consumer framework can be viewed as a bridge between the event stream and the adapter. A typical use of the event consumer framework is:
+#### 3.5.1.2 事件消费者
+事件消费者允许外部应用监听事件。每个事件消费者通过时间流注册事件适配器。消费者框架可以看成是事件流与适配器之间的桥梁。一种典型的事件消费者使用方式：
 
 ```
 adapter = <adapter supplied by the client application to register and receive events>
@@ -1273,13 +1273,13 @@ consumerClient.Start()
 consumerClient.Stop()
 ```
 
-#### 3.5.2 Event Adapters
-The event adapter encapsulates three facets of event stream interaction:
-  - an interface that returns the list of all events of interest
-  - an interface called by the event consumer framework on receipt of an event
-  - an interface called by the event consumer framework when the event bus terminates
+#### 3.5.2 事件适配器    
+事件适配器封装了三种流交互的切面：    
+  - 返回所有感兴趣的事件列表的接口
+  - 当事件消费者框架接受到事件后调用的接口
+  - 当事件总线终止时，事件消费者框架会调用的接口
 
-The reference implementation provides Golang specific language binding.
+引用的实现提供了Golang指定语言绑定
 ```
       EventAdapter interface {
          GetInterestedEvents() ([]*ehpb.Interest, error)
@@ -1287,13 +1287,14 @@ The reference implementation provides Golang specific language binding.
          Disconnected(err error)
       }
 ```
-Using gRPC as the event bus protocol allows the event consumer framework to be ported to different language bindings without affecting the event producer framework.
+把gRPC当成事件总线协议来使用，允许事件消费者框架对于不同的语言的绑定可移植而不影响事件生成者框架。
 
-#### 3.5.3 Event Structure
+#### 3.5.3 事件框架
 
-This section details the message structures of the event system. Messages are described directly in Golang for simplicity.
+这节详细描述了事件系统的消息结构。为了简单起见，消息直接使用Golang描述。
 
-The core message used for communication between the event consumer and producer is the Event.
+事件消费者和生产者之间通信的核心消息是事件。
+
 ```
     message Event {
         oneof Event {
@@ -1306,9 +1307,10 @@ The core message used for communication between the event consumer and producer 
        }
     }
 ```
-Per the above definition, an event has to be one of `Register`, `Block` or `Generic`.
+每一个上面的定义必须是`Register`, `Block`或`Generic`中的一种。
 
-As mentioned in the previous sections, a consumer creates an event bus by establishing a connection with the producer and sending a `Register` event. The `Register` event is essentially an array of `Interest` messages declaring the events of interest to the consumer.
+就像之前提到过的一样，消费者通过与生产者建立连接来创建事件总线，并发送`Register`事件。`Register`事件实质上是一组声明消费者感兴趣的事件的`Interest`消息。
+
 ```
     message Interest {
         enum ResponseType {
@@ -1323,143 +1325,114 @@ As mentioned in the previous sections, a consumer creates an event bus by establ
         ResponseType responseType = 2;
     }
 ```
-Events can be sent directly as protobuf structures or can be sent as JSON structures by specifying the `responseType` appropriately.
 
-Currently, the producer framework can generate a `Block` or a `Generic` event. A `Block` is a message used for encapsulating properties of a block in the blockchain.
+事件可以通过protobuf结构直接发送，也可以通过指定适当的`responseType`来发送JSON结构。
+
+当前，生产者框架可以生成`Block`和`Generic`事件。`Block`是用来封装区块链中区块属性的消息。
 
 
-## 4. Security
+## 4. 安全    
 
-This section discusses the setting depicted in the figure below.
-In particular, the system consists of the following entities:
-membership management infrastructure, i.e., a set of entities that are
-responsible for identifying an individual user (using any form of identification
-considered in the system, e.g., credit cards, id-cards), open an account for
-that user to be able to register, and issue the necessary credentials to
-successfully create transactions and deploy or invoke chaincode successfully
-through the fabric.
+这一节将讨论下面的图所展示的设置描述。特别的，系统是由下面这些实体构成的：会籍管理基础架构，如从一个实体集合中区分出不同用户身份的职责（使用系统中任意形式的标识，如：信用卡，身份证），为这个用户注册开户，并生成必要的证书以便通过fabric成功的创建交易，部署或调用链代码。
+
 ![figure-architecture](./images/sec-sec-arch.png)
- * Peers, that are classified as validating peers, and non-validating peers.
-   Validating peers (also known as validators) order and process (check validity, execute,
-   and add to the blockchain) user-messages (transactions) submitted to the network.
-   Non validating peers (also known as peers) receive user transactions on behalf of users,
-   and after some fundamental validity checks, they forward the transactions to their
-   neighboring validating peers. Peers maintain an up-to-date copy of the blockchain,
-   but in contradiction to validators, they do not execute transactions
-   (a process also known as *transaction validation*).
- * End users of the system, that have registered to our membership service administration,
-   after having demonstrated ownership of what is considered *identity* in the system,
-   and have obtained credentials to install the client-software and submit transactions
-   to the system.
- * Client-software, the software that needs to be installed at the client side for the
-   latter to be able to complete his registration to our membership service and submit
-   transactions to the system.
- * Online wallets, entities that are trusted by a user to maintain that user's credentials,
-   and submit transactions solely upon user request to the network. Online wallets come
-   with their own software at the client-side, that is usually light-weight, as the
-   client only needs to authenticate himself and his requests to the wallet.
-   While it can be the case that peers can play the role of *online wallet* for a set of
-   users, in the following sessions the security of online wallets is detailed separately.
 
-Users who wish to make use of the fabric, open an account at the membership management
-administration, by proving ownership of identity as discussed in previous sections, new chaincodes
-are announced to the blockchain network by the chaincode creator (developer) through the means
-of a deployment transaction that the client-software would construct on behalf of the developer.
-Such transaction is first received by a peer or validator, and afterwards circulated
-in the entire network of validators, this transaction is executed and finds its place to
-the blockchain network. Users can also invoke a function of an already deployed chain-code
-through an invocation transaction.
+ * Peers, 它们被分为验证peer和非验证peer。验证peer（也被称为验证器）是为了规范并处理（有效性检查，执行并添加到区块链中）用户消息（交易）提交到网络上。非验证peer（也被称为peer）代表用户接受用户交易，并通过一些基本的有效性检查，然后把交易发送到它们附近的验证peer。peer维护一个最新的区块链副本，只是为了做验证，而不会执行交易(处理过程也被称为*交易验证*)。
+ * 注册到我们的会籍服务管理系统的终端用户是在获取被系统认定的*身份*的所有权之后，并将获取到的证书安装到客户端软件后，提交交易到系统。
+ * 客户端软件，为了之后能完成注册到我们会籍服务和提交交易到系统所需要安装在客户端的软件
+ * 在线钱包，用户信任的用来维护他们证书的实体，并独自根据用户的请求向网络提交交易。在线钱包配置在他们自己的客户端软件中。这个软件通常是轻量级的，它只需有对自己和自己的钱包的请求做授权。也有peer为一些用户扮演*在线钱包*的角色，在接下来的会话中，对在线钱包做了详细区分。
 
-The next section provides a summary of the business goals of the system that drive the security requirements. We then overview the security components and their operation and show how this design fulfills the security requirements.  
+希望使用fabric的用户，通过提供之前所讨论的身份所有权，在会籍管理系统中开立一个账户，新的链代码被链代码创建者（开发）以开发者的形式通过客户端软件部署交易的手段，公布到区块链网络中。这样的交易是第一次被peer或验证器接收到，并流传到整个验证器网络中，这个交易被区块链网络执行并找到自己的位置。用户同样可以通过调用交易调用一个已经部署了的链代码
 
-### 4.1 Business security requirements
-This section presents business security requirements that are relevant to the context of the fabric.
-**Incorporation of identity and role management.**
+下一节提供了由商业目标所驱动的安全性需求的摘要。然后我们游览一下安全组件和它们的操作，以及如何设计来满足安全需求。
 
-In order to adequately support real business applications it is necessary to progress beyond ensuring cryptographic continuity. A workable B2B system must consequently move towards addressing proven/demonstrated identities or other attributes relevant to conducting business. Business transactions and consumer interactions with financial institutions need to be unambiguously mapped to account holders. Business contracts typically require demonstrable affiliation with specific institutions and/or possession of other specific properties of transacting parties. Accountability and non-frameability are two reasons that identity management is a critical component of such systems.
+### 4.1 商业安全需求    
+这一节表述的与fabric相关的商业安全需求。
+**身份和角色管理相结合**
 
-Accountability means that users of the system, individuals, or corporations, who misbehave can be traced back and be set accountable for their actions. In many cases, members of a B2B system are required to use their identities (in some form) to participate in the system, in a way such that accountability is guaranteed. Accountability and non-frameability are both essential security requirements in B2B systems and they are closely related. That is, a B2B system should guarantee that an honest user of such system cannot be framed to be accused as responsible for transactions originated by other users.
-
-In addition a B2B system should be renewable and flexible in order to accommodate changes of participants’s roles and/or affiliations.
-
-**Transactional privacy.**
-
-In B2B relationships there is a strong need for transactional privacy, i.e., allowing the end-user of a system to control the degree to which it interacts and shares information with its environment. For example, a corporation doing business through a transactional B2B system requires that its transactions are not visible to other corporations or industrial partners that are not authorized to share classified information with.
+为了充分的支持实际业务的需求，有必要超越确保加密连续性来进行演进。一个可工作的B2B系统必须致力于证明/展示身份或其他属性来开展业务。商业交易和金融机构的消费交互需要明确的映射到账户的所有者。商务合同通常需要与特定的机构和/或拥有交易的其他特定性质的各方保证有从属关系。身份管理是此类系统的关键组成部分的两个原因是问责制和不可陷害的。
 
 
-Transactional privacy in the fabric is offered by the mechanisms to achieve two properties with respect to non authorized users:
+问责制意味着系统的用户，个人或公司，谁的胡作非为都可以追溯到并为自己的行为负责。在很多情况下，B2B系统需要它们的会员使用他们的身份（在某些形式）加入到系统中，以确保问责制的实行。问责制和不可陷害的。都是B2B系统的核心安全需求，并且他们非常相关。B2B系统需要保证系统的诚实用户不会因为其他用户的交易而被指控。
 
-* Transaction anonymity, where the owner of a transaction is hidden among the so called *anonymity set*, which in the fabric, is the set of users.
+此外，一个B2B系统需要具有可再生性和灵活性，以满足参与者角色和/或从属关系的改变。
 
-* Transaction unlinkability, where two or more transactions of the same user should not be linked as such.
+**交易隐私.**
 
-Clearly depending on the context, non-authorized users can be anyone outside the system, or a subset of users.
+B2B系统对交易的隐私有着强烈的需求，如：允许系统的终端用户控制他与环境交互和共享的信息。例如：一家企业在交易型B2B系统上开展业务，要求它的交易得其他企业不可见，而他的行业合作伙伴无权分享机密信息。
 
-Transactional privacy is strongly associated to the confidentiality of the content of a contractual agreement between two or more members of a B2B system, as well as to the anonymity and unlinkability of any authentication mechanism that should be in place within transactions.
+在fabric中交易隐私是通过下面非授权用户的两个属性来实现的:
 
-**Reconciling transactional privacy with identity management.**
+* 交易匿名，交易的所有者隐藏在一个被称为*匿名集*的组建中，在fabric中，它是用户的一个集合。
 
-As described later in this document, the approach taken here to reconcile identity management with user privacy and to enable competitive institutions to transact effectively on a common blockchain (for both intra- and inter-institutional transactions) is as follows:
+* 交易不可关联，同一用户的两个或多个交易不能被关联起来。
 
-1. add certificates to transactions to implement a “permissioned” blockchain
 
-2. utilize a two-level system:
+根据上下文，非授权用户可以是系统以外的任何人，或用户的子集。
 
-   1. (relatively) static enrollment certificates (ECerts), acquired via registration with an enrollment certificate authority (CA).
+交易隐私与B2B系统的两个或多个成员之间的保密协议的内容强烈相关。任何授权机制的匿名性和不可关联性需要在交易时考虑。
 
-   2. transaction certificates (TCerts) that faithfully but pseudonymously represent enrolled users, acquired via a transaction CA.
+**通过身份管理协调交易隐私.**
 
-3. offer mechanisms to conceal the content of transactions to unauthorized members of the system.
+就像文档之后描述的那样，这里所采用的方法是使用用户隐私来协调身份管理，并使有竞争力的机构可以像下面一样在公共的区块链（用于内部和机构间交易）上快速的交易：
 
-**Audit support.** Commercial systems are occasionally subjected to audits. Auditors in such cases should be given the means to check a certain transaction, or a certain group of transactions, the activity of a particular user of the system, or the operation of the system itself. Thus, such capabilities should be offered by any system featuring transactions containing contractual agreements between business partners.
+1. 为交易添加证书来实现“有权限的”区块链
 
-### 4.2 User Privacy through Membership Services
+2. 使用两层系统：
 
-Membership Services consists of an infrastructure of several entities that together manage the identity and privacy of users on the network. These services validate user’s identity, register the user in the system, and provide all the credentials needed for him/her to be an active and compliant participant able to create and/or invoke transactions. A Public Key Infrastructure (PKI) is a framework based on public key cryptography that ensures not only the secure exchange of data over public networks but also affirms the identity of the other party. A PKI manages the generation, distribution and revocation of keys and digital certificates. Digital certificates are used to establish user credentials and to sign messages. Signing messages with a certificate ensures that the message has not been altered. Typically a PKI has a Certificate Authority (CA), a Registration Authority (RA), a certificate database, and a certificate storage. The RA is a trusted party that authenticates users and vets the legitimacy of data, certificates or other evidence submitted to support the user’s request for one or more certificates that reflect that user’s identity or other properties. A CA, upon advice from an RA, issues digital certificates for specific uses and is certified directly or hierarchically by a root CA. Alternatively, the user-facing communications and due diligence responsibilities of the RA can be subsumed as part of the CA. Membership Services is composed of the entities shown in the following figure. Introduction of such full PKI reinforces the strength of this system for B2B (over, e.g. Bitcoin).
+   1. 向登记的证颁发机构（CA）注册来获得(相对的) 静态登记证书 (ECerts)
+
+   2. 通过交易CA获取能如实但伪匿名的代表登记用户的交易证书(TCerts).
+
+3. 提供对系统中未授权会员隐藏交易内用的机制
+
+**审计支持.** 商业系统偶尔会受到审核。在这种情况下，将给予审计员检查某些交易，某组交易，系统中某些特定用户或系统自己的一些操作的手段。因此，任意与商业伙伴通过合同协议进行交易的系统都应该提供这样的能力。
+
+### 4.2 使用会籍管理的用户隐私
+会籍管理服务是由网络上管理用户身份和隐私的几个基础架构来组成的。这些服务验证用户的身份，在系统中注册用户，并为他/她提供所有作为可用、兼容的参数者来创建和/或调用交易所需要的证书。公告密钥体系（Public Key Infrastructure
+，PKI）是一个基于不仅对公共网络上交换的数据的加密而且能确认对方身份的公共密钥加密的。PKI管理密钥和数字证书的生成，发布和废止。数字证书是用来建立用户证书，并对消息签名的。使用证书签名的消息保证信息不被篡改。典型的PKI有一个证书颁发机构（CA），一个登记机构（RA），一个证书数据库，一个证书的存储。RA是对用户进行身份验证，校验数据的合法性，提交凭据或其他证据来支持用户请求一个或多个人反映用户身份或其他属性的可信任机构。CA根据RA的建议为特定的用户发放根CA能直接或分级的认证的数字证书。另外，RA的面向用户的通信和尽职调查的责任可以看作CA的一部分。会籍服务由下图展示的实体组成。整套PKI体系的引入加强了B2B系统的强度（超过，如：比特币）
 
 ![Figure 1](./images/sec-memserv-components.png)
 
-*Root Certificate Authority (Root CA):* entity that represents the trust anchor for the PKI scheme. Digital certificates verification follows a chain of trust. The Root CA is the top-most CA in the PKI hierarchy.
+*根证书颁发机构(根CA):* 它代表PKI体系中的信任锚。数字证书的验证遵循信任链。根CA是PKI层次结构中最上层的CA。
 
-*Registration Authority (RA):* a trusted entity that can ascertain the validity and identity of users who want to participate in the permissioned blockchain. It is responsible for out-of-band communication with the user to validate his/her identity and role.  It creates registration credentials needed for enrollment and information on root of trust.
+*登记机构(RA):* 它是一个可以确定想要加入到带权限区块链的用户的有效性和身份的可信实体。它是负责与用户外的带外通信来验证他/她的身份和作用。它是负责与用用户进行频外通信来验证他/她的身份和角色。它创建登记时所需要的注册证书和根信任上的信息。
 
-*Enrollment Certificate Authority (ECA):*  responsible for issuing Enrollment Certificates (ECerts) after validating the registration credentials provided by the user.
+*注册证书颁发机构(ECA):* 负责给通过提供的注册凭证验证的用户颁发注册证书(ECerts) 
 
-*Transaction Certificate Authority (TCA):* responsible for issuing Transaction Certificates (TCerts) after validating the enrollment credentials provided by the user.  
+*交易认证中心(TCA):* 负责给提供了有效注册证书的用户颁发交易证书(TCerts)
 
-*TLS Certificate Authority (TLS-CA):* responsible for issuing TLS certificates and credentials that allow the user to make use of its network. It validates the credential(s) or evidence provided by the user that justifies issuance of a TLS certificate that includes specific information pertaining to the user.
+*TLS证书颁发机构(TLS-CA):* 负责签发允许用户访问其网络的TLS证书和凭证。它验证用户提供的包含该用户的特定信息的，用来签发TLS证书的，证书或证据。
 
-In this specification, membership services is expressed through the following associated certificates issued by the PKI:
+*注册证书(ECerts)*
+ECerts是长期证书。它们是颁发给所有角色的，如用户，非验证peer，验证peer。在给用户颁发的情况下，谁向区块链提交候选人申请谁就拥有TCerts（在下面讨论）,ECerts有两种可能的结构和使用模式：
 
-*Enrollment Certificates (ECerts)*
-ECerts are long-term certificates. They are issued for all roles, i.e. users, non-validating peers, and validating peers. In the case of users, who submit transactions for candidate incorporation into the blockchain and who also own TCerts (discussed below), there are two possible structure and usage models for ECerts:
+ * Model A: ECerts 包含所有者的身份/注册ID，并可以在交易中为TCert请求提供只用来对名义实体身份做验证。它们包含两个密钥对的公共部分：签名密钥对和加密/密钥协商密钥对。 ECerts是每个人都可以访问。 
 
- * Model A:  ECerts contain the identity/enrollmentID of their owner and can be used to offer only nominal entity-authentication for TCert requests and/or within transactions. They contain the public part of two key pairs – a signature key-pair and an encryption/key agreement key-pair. ECerts are accessible to everyone.
+ * Model B: ECerts 包含所有者的身份/注册ID，并只为TCert请求提供名义实体的身份验证。它们包含一个签名密钥对的公告部分，即，签名验证公钥的公共部分。作为依赖方，ECerts最好只由TCA和审计人员访问。他们对交易是不可见的，因此（不像TCerts）签名密钥对不在这一层级发挥不可抵赖的作用。
+ 
+*交易证书(TCerts)*
+TCerts是每个交易的短期证书。它们是由TCA根据授权的用户请求颁发的。它们安全的给一个交易授权，并可以被配置为隐藏谁参与了交易或选择性地露出这样身份注册ID这样的信息。他们包含签名密钥对的公共部分，并可以被配置为包含一个密钥协议的密钥对的公告部分。他们值颁发给用户。它们唯一的关联到所有者，它们可以被配置为这个关联只有TCA知道知道（和授权审核员）。TCert可以配置成不携带用户的身份信息。它们使得用户不仅以匿名方式参与到系统中，而且阻止了交易之间的关联性。
 
- * Model B: ECerts contain the identity/enrollmentID of their owner and can be used to offer only nominal entity-authentication for TCert requests. They contain the public part of a signature key-pair, i.e., a signature verification public key. ECerts are preferably accessible to only TCA and auditors, as relying parties. They are invisible to transactions, and thus (unlike TCerts) their signature key pairs do not play a non-repudiation role at that level.
+然而，审计能力和问责制的要求TCA能够获取给定身份的TCert，或者获取指定TCert的所有者。有关TCerts如何在部署和调用交易中使用的详细信息参见4.3节，交易安全是在基础设施层面提供的。
 
-*Transaction Certificates (TCerts)*
-TCerts are short-term certificates for each transaction. They are issued by the TCA upon authenticated user-request. They securely authorize a transaction and may be configured to not reveal the identities of who is involved in the transaction or to selectively reveal such identity/enrollmentID information. They include the public part of a signature key-pair, and may be configured to also include the public part of a key agreement key pair. They are issued only to users. They are uniquely associated to the owner – they may be configured so that this association is known only by the TCA (and to authorized auditors). TCerts may be configured to not carry information of the identity of the user. They enable the user not only to anonymously participate in the system but also prevent linkability of transactions.
+TCerts可容纳的加密或密钥协议的公共密钥（以及数字签名的验证公钥）。
+如果配备好TCert，那么就需要注册证书不能包含加密或密钥协议的公钥。
 
-However, auditability and accountability requirements assume that the TCA is able to retrieve TCerts of a given identity, or retrieve the owner of a specific TCert. For details on how TCerts are used in deployment and invocation transactions see Section 4.3, Transaction Security offerings at the infrastructure level.  
+这样的密钥协议的公钥，Key_Agreement_TCertPub_Key，可以由交易认证机构（TCA）使用与生成Signature_Verification_TCertPub_Key同样的方法，使用TCertIndex + 1 而不是TCertIndex来作为索引个值来生成，其中TCertIndex是由TCA为了恢复而隐藏在TCert中的。
 
-TCerts can accommodate encryption or key agreement public keys (as well as digital signature verification public keys).
-If TCerts are thus equipped, then enrollment certificates need not also contain encryption or key agreement public keys.
+交易证书（TCert）的结构如下所述：
+* TCertID – 交易证书ID（为了避免通过隐藏的注册ID发生的意外可关联性，最好由TCA随机生成）.
+* Hidden Enrollment ID: AES_Encrypt<sub>K</sub>(enrollmentID), 其中密钥K = [HMAC(Pre-K, TCertID)]<sub>256位截断</sub>其中为每个K定义三个不同的密钥分配方案：(a), (b) and (c)。
+* Hidden Private Keys Extraction: AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || 已知的填充/校验检查向量) 其中||表示连接，其中各个批次具有被加到计数器的唯一（每个批次）的时间戳/随机偏移量（这个实现中初始化为1）来生成TCertIndex。该计数器可以通过每次增加2来适应TCA生成公钥，并由这两种类型的私钥的TCert所有者来恢复，如签名密钥对和密钥协商密钥对。
+* Sign Verification Public Key – TCert签名验证的公共密钥。
+* Key Agreement Public Key – TCert密钥协商的公钥.
+* Validity period – 该交易证书可用于交易的外/外部签名的时间窗口。
 
-Such a key agreement public key, Key_Agreement_TCertPub_Key, can be generated by the transaction certificate authority (TCA) using a method that is the same as that used to generate the Signature_Verification_TCertPub_Key, but using an index value of TCertIndex + 1 rather than TCertIndex, where TCertIndex is hidden within the TCert by the TCA for recovery by the TCert owner.
+这里至少有三种方式来配置考虑了隐藏注册ID域密钥的分配方案：
+*(a)* 每个K在注册期间发给用户，peer和审计员，并对TCA和授权的审计员可用。它可能，例如由K<sub>chain</sub>派生（会在这个规范的后面描述）或为了链代码的保密性使用独立的key(s)。
 
-The structure of a Transaction Certificate (TCert) is as follows:
-* TCertID – transaction certificate ID (preferably generated by TCA randomly in order to avoid unintended linkability via the Hidden Enrollment ID field).
-* Hidden Enrollment ID: AES_Encrypt<sub>K</sub>(enrollmentID), where key K = [HMAC(Pre-K, TCertID)]<sub>256-bit truncation</sub> and where three distinct key distribution scenarios for Pre-K are defined below as (a), (b) and (c).
-* Hidden Private Keys Extraction: AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector) where || denotes concatenation, and where each batch has a unique (per batch) time-stamp/random offset that is added to a counter (initialized at 1 in this implementation) in order to generate TCertIndex. The counter can be incremented by 2 each time in order to accommodate generation by the TCA of the public keys and recovery by the TCert owner of the private keys of both types, i.e., signature key pairs and key agreement key pairs.
-* Sign Verification Public Key – TCert signature verification public key.
-* Key Agreement Public Key – TCert key agreement public key.
-* Validity period – the time window during which the transaction certificate can be used for the outer/external signature of a transaction.
-
-There are at least three useful ways to consider configuring the key distribution scenario for the Hidden Enrollment ID field:
-*(a)* Pre-K is distributed during enrollment to user clients, peers and auditors, and is available to the TCA and authorized auditors. It may, for example, be derived from K<sub>chain</sub> (described subsequently in this specification) or be independent of key(s) used for chaincode confidentiality.
-
-*(b)* Pre-K is available to validators, the TCA and authorized auditors. K is made available by a validator to a user (under TLS) in response to a successful query transaction. The query transaction can have the same format as the invocation transaction. Corresponding to Example 1 below, the querying user would learn the enrollmentID of the user who created the Deployment Transaction if the querying user owns one of the TCerts in the ACL of the Deployment Transaction. Corresponding to Example 2 below, the querying user would learn the enrollmentID of the user who created the Deployment Transaction if the enrollmentID of the TCert used to query matches one of the affiliations/roles in the Access Control field of the Deployment Transaction.
+*(b)* 每个K对验证器，TCA和授权的审计员可用。K是在验证器成功响应用户的查询交易（通过TLS）后可用给的。查询交易可以使用与调用交易相同的格式。对应下面的例1，如果查询用户又有部署交易的ACL中的一张TCert，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。对应下面的例2，如果查询所使用TCert的注册ID（enrollmentID）与部署交易中访问控制域的其中一个隶属关系/角色匹配，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。
 
 *Example 1:*
 
@@ -1469,44 +1442,50 @@ There are at least three useful ways to consider configuring the key distributio
 
 ![Example 2](./images/sec-example-2.png)
 
-*(c)* Pre-K is available to the TCA and authorized auditors. The TCert-specific K can be distributed the TCert owner (under TLS) along with the TCert, for each TCert in the batch. This enables targeted release by the TCert owner of K (and thus trusted notification of the TCert owner’s enrollmentID). Such targeted release can use key agreement public keys of the intended recipients and/or PK<sub>chain</sub> where SK<sub>chain</sub> is available to validators as described subsequently in this specification. Such targeted release to other contract participants can be incorporated into a transaction or done out-of-band.
+*(c)*
+每个K对TCA和授权的审计员可用。对于批量中的所有TCert，TCert特有的K可以和TCert一起分发给TCert的所有者（通过TLS）。这样就通过K的TCert所有者启用目标释放（TCert所有者的注册ID的可信通知）。这样的目标释放可以使用预定收件人的密钥协商公钥和/或PK<sub>chain</sub>其中SK<sub>chain</sub>就像规范的后面描述的那样对验证器可用。这样目标释放给其它合同的参与者也可以被纳入到这个交易或在频外完成。
 
-If the TCerts are used in conjunction with ECert Model A above, then using (c) where K is not distributed to the TCert owner may suffice.
-If the TCerts are used in conjunction with ECert Model A above, then the Key Agreement Public Key field of the TCert may not be necessary.
 
-The Transaction Certificate Authority (TCA) returns TCerts in batches, each batch contains the KeyDF_Key (Key-Derivation-Function Key) which is not included within every TCert but delivered to the client with the batch of TCerts (using TLS). The KeyDF_Key allows the TCert owner to derive TCertOwner_EncryptKey which in turn enables recovery of TCertIndex from AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector).
+如果TCert与上述的ECert模型A的结合使用，那么使用K不发送给TCert的所有者的方案（c）就足够了。
+如果TCert与上述的ECert模型A的结合使用，那么TCert中的密钥协商的公钥域可能就不需要了。
 
-*TLS-Certificates (TLS-Certs)*
-TLS-Certs are certificates used for system/component-to-system/component communications. They carry the identity of their owner and are used for network level security.
+交易认证中心(TCA)以批量的方式返回TCert，每个批量包含不是每个TCert都有的，但是和TCert的批量一起传递到客户端的KeyDF_Key(Key-Derivation-Function Key) （通用TLS）。KeyDF_Key允许TCert的拥有者派生出真正用于从AES_Encrypt<sub>TCertOwner_EncryptKey</sub>（TCertIndex || 已知的填充/校验检查向量）的TCertIndex恢复的TCertOwner_EncryptKey。
 
-This implementation of membership services provides the following basic functionality: there is no expiration/revocation of ECerts; expiration of TCerts is provided via the validity period time window; there is no revocation of TCerts. The ECA, TCA, and TLS CA certificates are self-signed, where the TLS CA is provisioned as a trust anchor.
+*TLS证书(TLS-Certs)*
+TLS-Certs 是用于系统/组件到系统/组件间通讯所使用的证书。他们包含所有者的身份信息，使用是为了保证网络基本的安全。
 
-#### 4.2.1 User/Client Enrollment Process
+会籍管理的这个实现提供下面描述的基础功能：ECerts是没有到期/废止的；TCert的过期是由验证周期的时间窗口提供的。TCerts是没有废止的。ECA,TCA和TLS CA证书是自签名的，其中TLS CA提供信任锚点。
 
-The next figure has a high-level description of the user enrollment process. It has an offline and an online phase.
+
+#### 4.2.1 用户/客户端注册过程
+
+下面这个图高度概括了用户注册过程，它具有离线和在线阶段。
 
 ![Registration](./images/sec-registration-high-level.png)
 
-*Offline Process:* in Step 1, each user/non-validating peer/validating peer has to present strong identification credentials (proof of ID) to a Registration Authority (RA) offline. This has to be done out-of-band to provide the evidence needed by the RA to create (and store) an account for the user. In Step 2, the RA returns the associated username/password and trust anchor (TLS-CA Cert in this implementation) to the user. If the user has access to a local client then this is one way the client can be securely provisioned with the TLS-CA certificate as trust anchor.
+*离线处理:* 在第一步中，每个用户/非验证peer/验证peer有权在线下将较强的识别凭证（身份证明）到导入到注册机构（RA）。这需要在频外给RA提供为用户创建（存储）账号的证据凭证。第二步，RA返回对应的用户名/密码和信任锚点（这个实现中是TLS-CA Cert）给用户。如果用户访问了本地客户端，那么这是客户端可以以TLS-CA证书作为信任锚点来提供安全保障的一种方法。
 
-*Online Phase:* In Step 3, the user connects to the client to request to be enrolled in the system. The user sends his username and password to the client. On behalf of the user, the client sends the request to the PKI framework, Step 4, and receives a package, Step 5, containing several certificates, some of which should correspond to private/secret keys held by the client. Once the client verifies that the all the crypto material in the package is correct/valid, it stores the certificates in local storage and notifies the user. At this point the user enrollment has been completed.
+*在线阶段:* 第三步，用户连接客户端来请求注册到系统中。用户发送它的用户名和密码给客户端。客户端代表用户发送请求给PKI框架。第四步，接受包，第五步，包含其中一些对应于由客户端私有/秘密密钥的若干证书。一旦客户端验证包中所有加密材料是正确/有效的，他就把证书存储在本地并通知用户。这时候用户注册就完成了。
 
 ![Figure 4](./images/sec-registration-detailed.png)
 
-Figure 4 shows a detailed description of the enrollment process. The PKI framework has the following entities – RA, ECA, TCA and TLS-CA. After Step 1, the RA calls the function “AddEntry” to enter the (username/password) in its database. At this point the user has been formally registered into the system database. The client needs the TLS-CA certificate (as trust anchor) to verify that the TLS handshake is set up appropriately with the server. In Step 4, the client sends the registration request to the ECA along with its enrollment public key and additional identity information such as username and password (under the TLS record layer protocol). The ECA verifies that such user really exists in the database. Once it establishes this assurance the user has the right to submit his/her enrollment public key and the ECA will certify it. This enrollment information is of a one-time use. The ECA updates the database marking that this registration request information (username/password) cannot be used again. The ECA constructs, signs and sends back to the client an enrollment certificate (ECert) that contains the user’s enrollment public key (Step 5). It also sends the ECA Certificate (ECA-Cert) needed in future steps (client will need to prove to the TCA that his/her ECert was created by the proper ECA). (Although the ECA-Cert is self-signed in the initial implementation, the TCA and TLS-CA and ECA are co-located.) The client verifies, in Step 6, that the public key inside the ECert is the one originally submitted by the client (i.e. that the ECA is not cheating). It also verifies that all the expected information within the ECert is present and properly formed.
+图4展示了注册的详细过程。PKI框架具有RA, ECA,
+TCA和TLS-CA这些实体。第一步只收，RA调用“AddEntry”函数为它的数据库输入（用户名/密码）。这时候用户已正式注册到系统数据库中。客户端需要TLS-CA证书（当作信任锚点）来验证与服务器之间的TLS握手是正确的。第四步，客户端发送包含注册公钥和像用户名，密码这样的附加身份信息的注册请求到ECA（通过TLS备案层协议）。ECA验证这个用户是否真实存在于数据库。一旦它确认用户有权限提交他/她的注册公钥，那么ECA就会验证它。这个注册信息是一次性的。ECA会更新它的数据库来标识这条注册信息（用户名，密码）不能再被使用。ECA构造，签名并送回一张包含用户注册公钥的（步骤5）注册证书（ECert）。它同样会发送将来会用到（客户端需要向TCA证明他/她的ECert使用争取的ECA创建的）的ECA证书（ECA-Cert)）。（尽管ECA-Cert在最初的实现中是自签名的，TCA，TLS-CA和ECA是共址）第六步，客户端验证ECert中的公钥是最初由客户端提交的（即ECA没有作弊）。它同样验证ECert中的所有期望的信息存在且形式正确。
 
-Similarly, In Step 7, the client sends a registration request to the TLS-CA along with its public key and identity information. The TLS-CA verifies that such user is in the database. The TLS-CA generates, and signs a TLS-Cert that contains the user’s TLS public key (Step 8). TLS-CA sends the TLS-Cert and its certificate (TLS-CA Cert). Step 9 is analogous to Step 6, the client verifies that the public key inside the TLS Cert is the one originally submitted by the client and that the information in the TLS Cert is complete and properly formed. In Step 10, the client saves all certificates in local storage for both certificates. At this point the user enrollment has been completed.
+同样的，在第七步，客户端发送包含它的公钥和身份的注册信息到TLS-CA。TLS-CA验证该用户在数据库中真实存在。TLS-CA生成，签名包含用户TLS公钥的一张TLS-Cert（步骤8）。TLS-CA发送TLS-Cert和它的证书（TLS-CA Cert）。第九步类似于第六步，客户端验证TLS Cert中的公钥是最初由客户端提交的，TLS Cert中的信息是完整且形式正确。在第十步，客户端在本地存储中保存这两张证书的所有证书。这时候用户就注册完成了。
 
-In this implementation the enrollment process for validators is the same as that for peers. However, it is possible that a different implementation would have validators enroll directly through an on-line process.
+
+在这个版本的实现中验证器的注册过程和peer的是一样的。尽管，不同的实现可能使得验证器直接通过在线过程来注册。
 
 ![Figure 5](./images/sec-request-tcerts-deployment.png)
 ![Figure 6](./images/sec-request-tcerts-invocation.png)
 
-*Client:* Request for TCerts batch needs to include (in addition to count), ECert and signature of request using ECert private key (where Ecert private key is pulled from Local Storage).
+*客户端:* 请求TCert批量需要包含（另外计数），ECert和使用ECert私钥签名的请求（其中ECert的私钥使用本地存储获取的）
 
-*TCA generates TCerts for batch:* Generates key derivation function key, KeyDF_Key, as HMAC(TCA_KDF_Key, EnrollPub_Key). Generates each TCert public key (using TCertPub_Key = EnrollPub_Key + ExpansionValue G, where 384-bit ExpansionValue = HMAC(Expansion_Key, TCertIndex) and 384-bit Expansion_Key = HMAC(KeyDF_Key, “2”)). Generates each AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector), where || denotes concatenation and where TCertOwner_EncryptKey is derived as [HMAC(KeyDF_Key, “1”)]<sub>256-bit truncation</sub>.
+*TCA为批量生成TCerts:* 生成密钥派生函数的密钥，KeyDF_Key, 当作HMAC(TCA_KDF_Key, EnrollPub_Key). 为每张TCert生成公钥(使用TCertPub_Key = EnrollPub_Key + ExpansionValue G, 其中384位的ExpansionValue = HMAC(Expansion_Key, TCertIndex) 和384位的Expansion_Key = HMAC(KeyDF_Key, “2”)). 生成每个AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || 已知的填充/校验检查向量), 其中|| 表示连接，且TCertOwner_EncryptKey被当作[HMAC(KeyDF_Key,
+“1”)]派生<sub>256位截断</sub>.
 
-*Client:* Deriving TCert private key from a TCert in order to be able to deploy or invoke or query: KeyDF_Key and ECert private key need to be pulled from Local Storage. KeyDF_Key is used to derive TCertOwner_EncryptKey as [HMAC(KeyDF_Key, “1”)]<sub>256-bit truncation</sub>; then TCertOwner_EncryptKey is used to decrypt the TCert field AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector); then TCertIndex is used to derive TCert private key: TCertPriv_Key = (EnrollPriv_Key + ExpansionValue) modulo n, where 384-bit ExpansionValue = HMAC(Expansion_Key, TCertIndex) and 384-bit Expansion_Key = HMAC(KeyDF_Key, “2”).
+*客户端:* Deriving TCert private key from a TCert in order to be able to deploy or invoke or query: KeyDF_Key and ECert private key need to be pulled from Local Storage. KeyDF_Key is used to derive TCertOwner_EncryptKey as [HMAC(KeyDF_Key, “1”)]<sub>256-bit truncation</sub>; then TCertOwner_EncryptKey is used to decrypt the TCert field AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector); then TCertIndex is used to derive TCert private key: TCertPriv_Key = (EnrollPriv_Key + ExpansionValue) modulo n, where 384-bit ExpansionValue = HMAC(Expansion_Key, TCertIndex) and 384-bit Expansion_Key = HMAC(KeyDF_Key, “2”).
 
 #### 4.2.2 Expiration and revocation of certificates
 
@@ -3241,3 +3220,4 @@ For example, a Bluemix PaaS application using Node.js might have a Web front-end
 - [7] Christian Cachin, Simon Schubert, Marko Vukolić: [Non-determinism in Byzantine Fault-Tolerant Replication](http://arxiv.org/abs/1603.07351)
 
 下面这些评审人评审了这份文档： Frank Lu, John Wolpert, Bishop Brock, Nitin Gaur, Sharon Weed.
+*(c)* 每个K对TCA和授权的审计员可用。对于批量中的所有TCert，TCert特有的K可以和TCert一起分发给TCert的所有者（通过TLS）。这样就通过K的TCert所有者启用目标释放（TCert所有者的注册ID的可信通知）。这样的目标释放可以使用预定收件人的密钥协商公钥和/或PK<sub>chain</sub>其中SK<sub>chain</sub>就像规范对于
