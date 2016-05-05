@@ -1485,50 +1485,33 @@ TCA和TLS-CA这些实体。第一步只收，RA调用“AddEntry”函数为它�
 *TCA为批量生成TCerts:* 生成密钥派生函数的密钥，KeyDF_Key, 当作HMAC(TCA_KDF_Key, EnrollPub_Key). 为每张TCert生成公钥(使用TCertPub_Key = EnrollPub_Key + ExpansionValue G, 其中384位的ExpansionValue = HMAC(Expansion_Key, TCertIndex) 和384位的Expansion_Key = HMAC(KeyDF_Key, “2”)). 生成每个AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || 已知的填充/校验检查向量), 其中|| 表示连接，且TCertOwner_EncryptKey被当作[HMAC(KeyDF_Key,
 “1”)]派生<sub>256位截断</sub>.
 
-*客户端:* Deriving TCert private key from a TCert in order to be able to deploy or invoke or query: KeyDF_Key and ECert private key need to be pulled from Local Storage. KeyDF_Key is used to derive TCertOwner_EncryptKey as [HMAC(KeyDF_Key, “1”)]<sub>256-bit truncation</sub>; then TCertOwner_EncryptKey is used to decrypt the TCert field AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex || known padding/parity check vector); then TCertIndex is used to derive TCert private key: TCertPriv_Key = (EnrollPriv_Key + ExpansionValue) modulo n, where 384-bit ExpansionValue = HMAC(Expansion_Key, TCertIndex) and 384-bit Expansion_Key = HMAC(KeyDF_Key, “2”).
+*客户端:* 为部署，调用和查询，根据TCert来生成TCert的私钥：KeyDF_Key和ECert的私钥需要从本地存储中获取。KeyDF_Key是用来派生被当作[HMAC(KeyDF_Key, “1”)]<sub>256位截断</sub>的TCertOwner_EncryptKey；TCertOwner_EncryptKey是用来对TCert中的 AES_Encrypt<sub>TCertOwner_EncryptKey</sub>(TCertIndex ||
+已知的填充/校验检查向量)域解密的；TCertIndex是用来派生TCert的私钥的： TCertPriv_Key = (EnrollPriv_Key + ExpansionValue)模n，其中384位的ExpansionValue = HMAC(Expansion_Key, TCertIndex)，384位的Expansion_Key = HMAC(KeyDF_Key, “2”)。
 
-#### 4.2.2 Expiration and revocation of certificates
+#### 4.2.2 过期和废止证书
+实际是支持交易证书过期的。一张交易证书能使用的时间窗是由‘validity period’标识的。实现过期支持的挑战在于系统的分布式特性。也就是说，所有验证实体必须共享相同的信息；即，与交易相关的有效期验证需要保证一致性。为了保证有效期的验证在所有的验证器间保持一致，有效期标识这一概念被引入。这个标识扮演着逻辑时钟，使得系统可以唯一识别有效期。在创世纪时，链的“当前有效期”由TCA初始化。至关重要的是，此有效期标识符给出随时间单调增加的值，这使得它规定了有效期间总次序。
 
-It is practical to support expiration of transaction certificates. The time window during which a transaction certificate can be used is expressed by a ‘validity period’ field. The challenge regarding support of expiration lies in the distributed nature of the system. That is, all validating entities must share the same information; i.e. be consistent with respect to the expiration of the validity period associated with the transactions to be executed and validated. To guarantee that the expiration of validity periods is done in a consistent manner across all validators, the concept of validity period identifier is introduced. This identifier acts as a logical clock enabling the system to uniquely identify a validity period. At genesis time the “current validity period” of the chain gets initialized by the TCA. It is essential that this validity period identifier is given monotonically increasing values over time, such that it imposes a total order among validity periods.
+对于指定类型的交易，系统交易有效周期标识是用来一起向区块链公布有效期满的。系统交易涉及已经在创世纪块被定义和作为基础设施的一部分的合同。有效周期标识是由TCA周期性的调用链代码来更新的。注意，只有TCA允许更新有效期。TCA通过给定义了有效期区间的‘not-before’和‘not-after’这两个域设置合适的整数值来为每个交易证书设置有效期。
 
-A special type of transactions, system transactions, and the validity period identified are used together to announce the expiration of a validity period to the Blockchain. System transactions refer to contracts that have been defined in the genesis block and are part of the infrastructure. The validity period identified is updated periodically by the TCA invoking a system chaincode. Note that only the TCA should be allowed to update the validity period. The TCA sets the validity period for each transaction certificate by setting the appropriate integer values in the following two fields that define a range: ‘not-before’ and ‘not-after’ fields.
+TCert过期:
+在处理TCert时，验证器从状态表中读取与总账中的‘current validity period’相关的值来验证与交易相关的外部证书目前是否有效。状态表中的当前值需要落在TCert的‘not-before’和‘not-after’这两个子域所定义的区间中。如果满足，那么验证器就继续处理交易。如果当前值没有在这个区间中，那么TCert已经过期或还没生效，那么验证器就停止处理交易。
 
-TCert Expiration:
-At the time of processing a TCert, validators read from the state table associated with the ledger the value of ‘current validity period’ to check if the outer certificate associated with the transaction being evaluated is currently valid. That is, the current value in the state table has to be within the range defined by TCert sub-fields ‘not-before’ and ‘not-after’. If this is the case, the validator continues processing the transaction. In the case that the current value is not within range, the TCert has expired or is not yet valid and the validator should stop processing the transaction.
+ECert过期:
+注册证书与交易证书具有不同的有效期长度。
 
-ECert Expiration:
-Enrollment certificates have different validity period length(s) than those in transaction certificates.
+废止是由证书废止列表（CRLs）来支持的，CRLs鉴定废止的证书。CRLs的改变，增量的差异通过区块链来公布
 
-Revocation is supported in the form of Certificate Revocation Lists (CRLs). CRLs identify revoked certificates. Changes to the CRLs, incremental differences, are announced through the Blockchain.
+### 4.3 基础设施层面提供的交易安全
 
-### 4.3 Transaction security offerings at the infrastructure level
+fabric中的交易是通过提交用户-消息来引入到总账中的。就像之前章节讨论的那样，这些信息具有指定的结构，且允许用户部署新的链代码，调用已经存在的链代码，或查询已经存在的链代码的状态。因此交易的方式被规范，公布和处理在整个系统提供的隐私和安全中起着重要的作用。
 
-Transactions in the fabric are user-messages submitted to be included
-in the ledger. As discussed in previous sections, these messages have a
-specific structure, and enable users to deploy new chaincodes, invoke existing
-chaincodes, or query the state of existing chaincodes.
-Therefore, the way transactions are formed, announced and processed plays
-an important role to the privacy and security offerings of the entire system.
+一方面我们的会籍服务通过检查交易是由系统的有效用户创建的来提供验证交易的手段，为了把用户身份和交易撇清，但是在特定条件下又需要追踪特定个体的交易（执法，审计）。也就是说，会籍服务提供结合用户隐私与问责制和不可抵赖性来提供交易认证机制。
 
-On one hand our membership service provides the means to authenticate transactions as
-having originated by valid users of the system, to disassociate transactions with user identities,
-but while efficiently tracing the transactions a particular individual under certain conditions
-(law enforcement, auditing). In other words, membership services offer to transactions authentication
-mechanisms that marry user-privacy with accountability and non-repudiation.
-
-On the other hand, membership services alone cannot offer full privacy of user-activities within
-the fabric. First of all, for privacy provisions offered by the fabric to be complete,
-privacy-preserving authentication mechanisms need to be accompanied by transaction confidentiality.
-This becomes clear if one considers that the content of a chaincode, may leak information on who may have
-created it, and thus break the privacy of that chaincode's creator. The first subsection
-discusses transaction confidentiality.
+另一方面，fabric的会籍服务不能单独提供完整的用户活动隐私。首先fabric提供完整的隐私保护条款，隐私保护认证机制需要通过交易保密协同。很明显，如果认为链代码的内容可能会泄漏创建者的信息，那么这就打破了链代码创建者的隐私要求。第一小节讨论交易的保密性。
 
 <!-- @Binh, @Frank: PLEASE REVIEW THIS PARAGRAPH -->
 <!-- Edited by joshhus ... April 6, 2016 -->
-Enforcing access control for the invocation of chaincode is an important security requirement.
-The fabric exposes to the application (e.g., chaincode creator) the means for the application
-to perform its own invocation access control, while leveraging the fabric's membership services.
-Section 4.4 elaborates on this.
+为链代码的调用强制访问控制是一个重要的安全要求。fabric暴露给应用程序（例如，链代码创建者）这意味着当应用利用fabric的会籍服务是，需要应用自己调用访问控制。4.4节详细阐述了这一点。
 
 <!--Enforcing access control on the invocation of chaincodes is another requirement associated
 to the security of chaincodes. Though for this one can leverage authentication mechanisms
@@ -1536,15 +1519,9 @@ of membership services, one would need to design invocation ACLs and perform the
 validation in a way that non-authorized parties cannot link multiple invocations of
 the same chaincode by the same user. Subection 5.2.2 elaborates on this.-->
 
-Replay attacks is another crucial aspect of the security of the chaincode,
-as a malicious user may copy a transaction that was added to the Blockchain
-in the past, and replay it in the network to distort its operation.
-This is the topic of Section 4.3.3.
+重放攻击是链代码安全的另一个重要方面，作为恶意用户可能复制一个之前的，已经加入到区块链中的交易，并向网络重放它来篡改它的操作。这是第4.3.3节的话题。
 
-The rest of this Section presents an overview of how security mechanisms in the
-infrastructure are incorporated in the transactions' lifecycle,
-and details each security mechanism separately.
-
+本节的其余部分介绍了基础设施中的安全机制是如何纳入到交易的生命周期中，并分别详细介绍每一个安全机制。
 
 #### 4.3.1 Security Lifecycle of Transactions
 Transactions are created on the client side. The client can be either plain
