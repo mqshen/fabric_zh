@@ -1523,244 +1523,137 @@ the same chaincode by the same user. Subection 5.2.2 elaborates on this.-->
 
 本节的其余部分介绍了基础设施中的安全机制是如何纳入到交易的生命周期中，并分别详细介绍每一个安全机制。
 
-#### 4.3.1 Security Lifecycle of Transactions
-Transactions are created on the client side. The client can be either plain
-client, or a more specialized application, i.e., piece of
-software that handles (server) or invokes (client) specific chaincodes
-through the blockchain. Such applications are built on top of the
-platform (client) and are detailed in Section 4.4.
+#### 4.3.1 交易安全的生命周期    
+交易在客户端创建。客户端可以是普通的客户端，或更专用的英语难过，即，通过区块链处理（服务器）或调用（客户端）具体链代码的软件部分。这样的应用是建立在平台（客户端）上的，并在4.4节中详细介绍。
 
-Developers of new chaincodes create a new deploy transaction by passing to
-the fabric infrastructure:
-* the confidentiality/security version or type they want the transaction to conform with,
-* the set of users who wish to be given access to parts of the chaincode and
-  a proper representation of their (read) access rights
+新链代码的开发者可以通过这些fabric的基础设施来新部署交易：
+* 希望交易符合保密/安全的版本和类型    
+* 希望访问部分链代码的用户有适当的（读）访问权限     
 <!-- (read-access code/state/activity, invocation-access) -->
-* the chaincode specification,
-* code metadata, containing information that should be passed to the chaincode
-  at the time of its execution
-  (e.g., configuration parameters), and
-* transaction metadata, that is attached to the transaction structure,
-  and is only used by the application that deployed the chaincode.
+* 链代码规范    
+* 代码元数据，包含的信息需要在链代码执行时传递给它（即，配置参数），和     
+* 附加在交易结构上的并只在应用部署链代码时使用的交易元数据
 
-Invoke and query transactions corresponding to chaincodes with confidentiality
-restrictions are created using a similar approach. The transactor provides the
-identifier of the chaincode to be executed, the name of the function to be
-invoked and its arguments. Optionally, the invoker can pass to the
-transaction creation function, code invocation metadata, that will be provided
-to the chaincode at the time of its execution. Transaction metadata is another
-field that the application of the invoker or the invoker himself can leverage
-for their own purposes.
+具有保密限制的链代码的调用和查询交易都是用类似的方式创建。交易者提供需要执行的链代码的标识，要调用的函数的名称及其参数。可选的，调用者可以传递在链代码执行的时候所需要提供的代码调用元数据给交易创建函数。交易元数据是调用者的应用程序或调用者本身为了它自己的目的所使用的另外一个域。
 
-Finally transactions at the client side, are signed by a certificate of their
-creator and released to the network of validators.
+最后，交易在客户端，通过它们的创建者的证书签名，并发送给验证器网络。
+验证器接受私密交易，并通过下列阶段传递它们：    
+* *预验证*阶段，验证器根据根证书颁发机构来验证交易证书，验证交易（静态的）中包含交易证书签名，并严重交易是否为重放（参见，下面关于重放攻击的详细信息）
 Validators receive the confidential transactions, and pass them through the following phases:
-* *pre-validation* phase, where validators validate the transaction certificate against the accepted root certificate authority,
-  verify transaction certificate signature included in the transaction (statically), and check whether the transaction is a replay (see, later section for details on replay attack protection).
-* *consensus* phase, where the validators add this transaction to the total order of transactions (ultimately included in the ledger)
-* *pre-execution* phase, where validators verify the validity of the transaction / enrollment certificate against the current validity period,
-  decrypt the transaction (if the transaction is encrypted), and check that the transaction's plaintext is correctly formed(e.g., invocation access control is respected, included TCerts are correctly formed);
-  mini replay-attack check is also performed here within the transactions of the currently processed block.
-* *execution* phase, where the (decrypted) chaincode is passed to a container, along with the associated code metadata, and is executed
-* *commit* phase, where (encrypted) updates of that chaincodes state is committed to the ledger with the transaction itself.
+* *共识*阶段, 验证器把这比交易加入到交易的全序列表中（最终包含在总账中）
+* *预执行*阶段, 验证交易/注册证书是否在当前的有效期中
+  解密交易（如果交易是加密的），并验证交易明文的形式正确（即，符合调用访问控制，包含TCert形式正确）
+  在当前处理块的事务中，也执行了简单的重放攻击检查。
+* *执行*阶段, (解密的) 链代码和相关的代码元数据被传递给容器，并执行。
+* *提交* 阶段, (解密的)更新的链代码的状态和交易本身被提交到总账中。
 
 
-#### 4.3.2 Transaction confidentiality
+#### 4.3.2 交易保密性
 
-Transaction confidentiality requires that under the request of the developer, the plain-text
-of a chaincode, i.e., code, description, is not accessible or inferable (assuming a computational
-attacker) by any unauthorized entities(i.e., user or peer not authorized by the developer).
-For the latter, it is important that for chaincodes with confidentiality requirements the
-content of both *deploy* and *invoke* transactions remains concealed. In the same spirit,
-non-authorized parties, should not be able to associate invocations (invoke transactions) of a
-chaincode to the chaincode itself (deploy transaction) or these invocations to each other.
+在开发人员的要求下，交易机密性要求链代码的原文，即代码，描述，是不能被未授权的实体（即，未被开发人员授权的用户或peer）访问或推导（assuming a computational attacker）出来。对于后者，*部署*和*调用*交易的内容始终被隐藏对链代码的保密需求是至关重要的。本着同样的精神，未授权方，不应该能联系链代码（调用交易）与链代码本身（部署交易）之间的调用关系或他们之间的调用。
 
-Additional requirements for any candidate solution is that it respects and supports the privacy
-and security provisions of the underlying membership service. In addition, it should not prevent
-the enforcement of any invocation access control of the chain-code functions in the fabric, or
-the implementation of enforcement of access-control mechanisms on the application (See Subsection 4.4).
 
-In the following is provided the specification of transaction confidentiality
-mechanisms at the granularity of users. The last subsection provides some guidelines
-on how to extend this functionality at the level of validators.
-Information on the features supported in current release and its security
-provisions, you can find in Section 4.7.
+任何候选的解决方案的附加要求是，满足并支持底层的会籍服务的隐私和安全规定。此外，在fabric中他不应该阻止任何链代码函数的调用访问控制，或在应用上实现强制的访问控制机制(参看4.4小结)。
 
-The goal is to achieve a design that will allow for granting or restricting
-access to an entity to any subset of the following parts of a chain-code:
-1. chaincode content, i.e., complete (source) code of the
-   chaincode,
+下面提供了以用户的粒度来设置的交易机密性机制的规范。最后小结提供了一些如何在验证器的层次来扩展这个功能的方针。当前版本所支持的特性和他的安全条款可以在4.7节中找到。
+
+
+目标是达到允许任意的子集实体被允许或限制访问链代码的下面所展示的部分：
+1. 链代码内容，即，链代码的完整（源）代码
 <!--& roles of users in that chaincode-->
-2. chaincode function headers, i.e., the prototypes of the functions included in a chaincode,
+2. 链代码函数头，即，包含在链代码中函数的原型
 <!--access control lists, -->
 <!--and their respective list of (anonymous) identifiers of users who should be
    able to invoke each function-->
-3. chaincode [invocations &] state, i.e., successive updates to the state of a specific chaincode,
-   when one or more functions of its are invoked
-4. all the above
+3. 链代码[调用&] 状态,即， 当一个或多个函数被调用时，连续更新的特定链码的状态。
+4. 所有上面所说的
 
-Notice, that this design offers the application the capability to leverage the fabric's
-membership service infrastructure and its public key infrastructure to build their own access
-control policies and enforcement mechanisms.
+注意，这样的设计为应用提供利用fabric的会籍管理基础设施和公钥基础设施来建立自己的访问控制策略和执法机制的能力。
 
-##### 4.3.2.1 Confidentiality against users
+##### 4.3.2.1 针对用户的保密     
 
-To support fine-grained confidentiality control, i.e., restrict read-access to the
-plain-text of a chaincode to a subset of users that the chaincode creator
-defines, a chain is bound to a single long-term encryption key-pair
-(PK<sub>chain</sub>, SK<sub>chain</sub>).
-Though initially this key-pair is to be stored and maintained by each chain's
-PKI, in later releases, however, this restriction will be moved away,
-as chains (and the associated key-pairs) can be triggered through the Blockchain
-by any user with *special* (admin) privileges (See, Section 4.3.2.2).
+为了支持细粒度的保密控制，即，为链代码创建者定义的用户的子集，限制链代码的明文读权限，一条绑定到单个长周期的加密密钥对的链（PK<sub>chain</sub>, SK<sub>chain</sub>）。
 
-**Setup**. At enrollment phase, users obtain (as before) an enrollment certificate,
-denoted by Cert<sub>u<sub>i</sub></sub> for user u<sub>i</sub>, while each
-validator v<sub>j</sub> obtain its enrollment certificate denoted by
-Cert<sub>v<sub>j</sub></sub>. Enrollment would grant users and validators the
-following credentials:
+尽管这个密钥对的初始化是通过每条链的PKI来存储和维护的，在之后的版本中，这个限制将会去除。链（和相关的密钥对）可以由任意带有*特定*（管理）权限的用户通过区块链来触发（参看4.3.2.2小节）
 
-1. Users:
+**搭建**. 在注册阶段, 用户获取（像之前一样）一张注册证书，为用户u<sub>i</sub>标记为Cert<sub>u<sub>i</sub></sub>，其中每个验证器v<sub>j</sub>获取的注册证书标记为Cert<sub>v<sub>j</sub></sub>。注册会给用户或验证器发放下面这些证书：
 
-   a. claim and grant themselves signing key-pair (spk<sub>u</sub>, ssk<sub>u</sub>),
+1. 用户：
+    
+   a. 声明并授予自己签名密钥对(spk<sub>u</sub>, ssk<sub>u</sub>)
 
-   b. claim and grant themselves encryption key-pair (epk<sub>u</sub>, esk<sub>u</sub>),
+   b. 申明并授予他们加密密钥对(epk<sub>u</sub>, esk<sub>u</sub>),
 
-   c. obtain the encryption (public) key of the chain PK<sub>chain</sub>
+   c. 获取链PK<sub>chain</sub>的加密（公共）密钥
 
-2. Validators:
+2. 验证器:
 
-   a. claim and grant themselves signing key-pair (spk<sub>v</sub>, ssk<sub>v</sub>),
+   a. 声明并授予他们签名密钥对(spk<sub>v</sub>, ssk<sub>v</sub>)
 
-   b. claim and grant themselves an encryption key-pair (epk<sub>v</sub>, esk<sub>v</sub>),
+   b. 申明并授予他们加密密钥对 (epk<sub>v</sub>, esk<sub>v</sub>),
 
-   c. obtain the decryption (secret) key of the chain SK<sub>chain</sub>
+   c. 获取链SK<sub>chain</sub>的解密（秘密）密钥
 
-Thus, enrollment certificates contain the public part of two key-pairs:
-* one signature key-pair [denoted by (spk<sub>v<sub>j</sub></sub>,ssk<sub>v<sub>j</sub></sub>)
-  for validators and by (spk<sub>u<sub>i</sub></sub>, ssk<sub>u<sub>i</sub></sub>) for users], and
-* an encryption key-pair [denoted by (epk<sub>v<sub>j</sub></sub>,esk<sub>v<sub>j</sub></sub>)
-  for validators and (epk<sub>u<sub>i</sub></sub>, esk<sub>u<sub>i</sub></sub>) for users]
+因此，注册证书包含两个密钥对的公共部分：
+* 一个签名密钥对[为验证器标记为(spk<sub>v<sub>j</sub></sub>,ssk<sub>v<sub>j</sub></sub>)，为用户标记为(spk<sub>u<sub>i</sub></sub>, ssk<sub>u<sub>i</sub></sub>)] 和
+* 一个加密密钥对[为验证器标记为(epk<sub>v<sub>j</sub></sub>,esk<sub>v<sub>j</sub></sub>)，为用户标记为(epk<sub>u<sub>i</sub></sub>, esk<sub>u<sub>i</sub></sub>)]
 
-Chain, validator and user enrollment public keys are accessible to everyone.
+链，验证器和用户注册公钥是所有人都可以访问的。
 
-In addition to enrollment certificates, users who wish to anonymously
-participate in transactions issue transaction certificates. For simplicity
-transaction certificates of a user u<sub>i</sub> are denoted by
-TCert<sub>u<sub>i</sub></sub>. Transaction certificates include the public part
-of a signature key-pair denoted by  
-(tpk<sub>u<sub>i</sub></sub>,tsk<sub>u<sub>i</sub></sub>).
+除了注册证书，用户希望通过交易证书的方式匿名的参与到交易中。用户的简单交易证书u<sub>i</sub>被标记为TCert<sub>u<sub>i</sub></sub>。交易证书包含的签名密钥对的公共部分标记为(tpk<sub>u<sub>i</sub></sub>,tsk<sub>u<sub>i</sub></sub>)。
 
-The following section provides a high level description of how transaction
-format accommodates read-access restrictions at the granularity of users.
+下面的章节概括性的描述了如何以用户粒度的方式提供访问控制。
 
-**Structure of deploy transaction.**
-The following figure depicts the structure of a typical deploy
-transaction with confidentiality enabled.
+**部署交易的结构.**
+下图描绘了典型的启用了保密性的部署交易的结构。
 
 ![FirstRelease-deploy](./images/sec-usrconf-deploy.png)
 
-One can notice that a deployment transaction consists of several sections:
-* Section *general-info*: contains the administration details of the
-  transaction, i.e., which chain this transaction corresponds to (chained),
-  the type of transaction (that is set to ''deplTrans''), the version number of
-  confidentiality policy implemented, its creator identifier (expressed by means
-  of transaction certificate TCert of enrollment certificate Cert), and a Nonce,
-  that facilitates primarily replay-attack resistance techniques.
-* Section *code-info*: contains information on the chain-code source code,
-  and function headers. As shown in the figure below, there is a symmetric key
-  used for the source-code of the chaincode (K<sub>C</sub>), and another
-  symmetric key used for the function prototypes (K<sub>H</sub>). A signature of
-  the creator of the chaincode is included on the plain-text code such that
-  the latter cannot be detached from the transaction and replayed by another
-  party.
-* Section *chain-validators*: where appropriate key material is passed to the
-  validators for the latter to be able to (i) decrypt the chain-code source
-  (K<sub>C</sub>), (ii) decrypt the headers,  and
-  (iii) encrypt the state when the chain-code has been
-  invoked accordingly(K<sub>S</sub>). In particular, the chain-code creator
+注意，部署交易由几部分组成：
+* *基本信息*部分: 包含交易管理员的详细信息，即这个交易对应于哪个链（链接的），交易的类型（设置''deplTrans''），实现的保密协议的版本号，创建者的身份（由注册证书的交易证书来表达），和主要为了防止重放攻击的Nonce。
+* *代码信息*部分: 包含链代码的源码，函数头信息。就像下图所展示的那样，有一个对称密钥(K<sub>C</sub>)用于链代码的源代码，另一个对称密钥(K<sub>H</sub>)用于函数原型。链代码的创建者会对明文代码做签名，使得信函不能脱离交易，也不能被其他东西替代。
+* *链验证器*部分: 为了(i)解密链代码的源码(K<sub>C</sub>),(ii)解密函数头，和(iii)当链代码根据(K<sub>S</sub>)调用时加密状态。尤其是链代码的创建者为他部署的链代码生产加密密钥对(PK<sub>C</sub>, SK<sub>C</sub>)。它然后使用PK<sub>C</sub>加密所有与链代码相关的密钥：
+<center> [(''code'',K<sub>C</sub>) ,(''headr'',K<sub>H</sub>),(''code-state'',K<sub>S</sub>), Sig<sub>TCert<sub>u<sub>c</sub></sub></sub>(\*)]<sub>PK<sub>c</sub></sub>, </center>并把
+where appropriate key material is passed to the
+  In particular, the chain-code creator
   generates an encryption key-pair for the chain-code it deploys
   (PK<sub>C</sub>, SK<sub>C</sub>). It then uses PK<sub>C</sub>
   to encrypt all the keys associated to the chain-code:
-  <center> [(''code'',K<sub>C</sub>) ,(''headr'',K<sub>H</sub>),(''code-state'',K<sub>S</sub>), Sig<sub>TCert<sub>u<sub>c</sub></sub></sub>(\*)]<sub>PK<sub>c</sub></sub>, </center>
-  and passes the secret key SK<sub>C</sub> to the validators using the
-  chain-specific public key:
+  <center> [(''code'',K<sub>C</sub>) ,(''headr'',K<sub>H</sub>),(''code-state'',K<sub>S</sub>), Sig<sub>TCert<sub>u<sub>c</sub></sub></sub>(\*)]<sub>PK<sub>c</sub></sub>, </center>私钥SK<sub>C</sub>通过链指定的公钥：
   <center>[(''chaincode'',SK<sub>C</sub>), Sig<sub>TCert<sub>u<sub>c</sub></sub></sub>(*)]<sub>PK<sub>chain</sub></sub>.</center>
-* Section *contract-users*: where the public encryption keys of the contract users,
-  i.e., users who are given read-access to parts of the chaincode, are used to encrypt
-  the keys  associated to their access rights:
+传递给验证器。
+* *合同用户*部分: 合同用户的公共密钥，即具有部分链代码读权限的用户，根据他们的访问权限加密密钥：
 
-  1. SK<sub>c</sub> for the users to be able to read any message associated to
-     that chain-code (invocation, state, etc),
+  1. SK<sub>c</sub>使得用户能读取与这段链代码相关的任意信息（调用，状态，等）
 
-  2. K<sub>C</sub> for the user to be able to read only the contract code,
+  2. K<sub>C</sub>使用户只能读取合同代码
 
-  3. K<sub>H</sub> for the user to only be able to read the headers,
+  3. K<sub>H</sub> 使用户只能读取头信息
 
-  4. K<sub>S</sub> for the user to be able to read the state associated to that contract.
+  4. K<sub>S</sub>使用户只能读取与合同相关的状态
 
-  Finally users are given the contract's public key PK<sub>c</sub>,
-  for them to be able to encrypt information related to that contract for the validators
-  (or any in possession of SK<sub>c</sub>) to be able to read it. Transaction certificate
-  of each contract user is appended to the transaction and follows that user's message.
-  This is done for users to be able to easily search the blockchain
-  for transactions they have been part of. Notice that the deployment transaction also
-  appends a message to the creator u<sub>c</sub> of the chain-code, for the
-  latter to be able to retrieve this transaction through parsing the ledger and without
-  keeping any state locally.
+  最后给用户发放一个合同的公钥PK<sub>c</sub>，使得他们可以根据合同加密信息，从而验证器(or any in possession of SK<sub>c</sub>)可以读取它。每个合同用户的交易证书被添加到交易中，并跟随在用户信息之后。这可以使得用户可以很容易的搜索到有他们参与的交易。注意，为了信函可以在本地不保存任何状态的情况下也能通过分析总账来获取这笔交易，部署交易也会添加信息到链代码创建者u<sub>c</sub>。
 
-
-The entire transaction is signed by a certificate of the chaincode creator, i.e., enrollment
-or transaction certificate as decided by the latter.
-Two noteworthy points:
-* Messages that are included in a transaction in an encrypted format, i.e., code-functions, code-hdrs,
-  are signed before they are encrypted using the same TCert the entire transaction is signed with, or
-  even with a different TCert or the ECert of the user (if the transaction deployment should carry the identity
-  of its owner. A binding to the underlying transaction carrier should be included in the signed message, e.g.,
-  the hash of the TCert the transaction is signed, such that mix\&match attacks are not possible.
-  Though we detail such attacks in Section 4.4, in these cases an attacker who sees a transaction should not be able
-  to isolate the ciphertext corresponding to, e.g., code-info, and use it for another transaction of her own.
-  Clearly, such an ability would disrupt the operation of the system, as a chaincode that was first created by user A,
-  will now also belong to malicious user B (who is not even able to read it).
-* To offer the ability to the users to cross-verify they are given access to the
-  correct key, i.e., to the same key as the other contract users, transaction
-  ciphertexts that are encrypted with a key K are accompanied by a commitment
-  to K, while the opening of this commitment value is passed to all users who
-  are entitled access to K in contract-users, and chain-validator sections.
+整个交易由链代码的创建者的证书签名，即：有信函决定使用注册还是交易证书。
+两个值得注意的要点：
+* 交易中的信息是以加密的方式存储的，即，code-functions,
+* code-hdrs在使用TCert加密整个交易之前会用想用的TCert签名，或使用不同的TCert或ECert（如果交易的部署需要带上用户的身份。一个绑定到底层交易的载体需要包含在签名信息中，即，交易的TCert的哈希是签名的，因此mix\&match攻击是不可能的。我们在4.4节中详细讨论这样的攻击，在这种情况下，攻击者不能从他看到的交易中分离出对应的密文，即，代码信息，并在另一个交易中使用它。很明显，这样会打乱整个系统的操作，链代码首先有用户A创建，现在还属于恶意用户B（可能没有权限读取它）
+* 为了给用户提供交叉验证的能力，会给他们访问正确密钥的权限，即给其他用户相同的密钥，使用密钥K对交易加密成密文，伴随着对K的承诺，而这一承诺值开放给所有在合同中有权访问K的用户，和链验证器。 
   <!-- @adecaro: please REVIEW this! -->
-  In this way, anyone who is entitled access to that key can verify that the key
-  has been properly passed to it. This part is omitted in the figure above to
-  avoid confusion.
+  在这种情况下，谁有权访问该密钥，谁就可以验证密钥是否正确传递给它。为了避免混乱，这部分在上图中省略了。
 
 
-
-**Structure of invoke transaction.**
-A transaction invoking the chain-code triggering the execution of a function of the chain-code with
-user-specified arguments is structured as depicted in the figure below.
+**调用交易的结构.**
+下图结构化描述了，交易调用链代码会触发使用用户指定的参数来执行链代码中的函数
 
 ![FirstRelease-deploy](./images/sec-usrconf-invoke.png)
 
-Invocation transaction as in the case of deployment transaction consists of a
-*general-info* section, a *code-info* section, a section for the *chain-validators*,
-and one for the *contract users*, signed altogether with one of the invoker's
-transaction certificates.
+调用交易和部署交易一样由一个*基本信息*， *代码信息*，*链验证器*和一个*合同用户*，并使用一张调用者的交易证书对所有进行签名。
 
-- General-info follows the same structure as the corresponding section of the
-deployment transaction.
-The only difference relates to the transaction type that is now set to ''InvocTx'',
-and the chain-code identifier or name that is now encrypted under the
-chain-specific encryption (public) key.
+- 基本信息 与部署交易中对应部分遵循相同的结构。唯一的不同是交易类型被设置为''InvocTx''，链代码的标识符或名字是通过链指定的加密（公共）密钥来加密的。
 
-- Code-info exhibits the same structure as the one of the deployment transaction.
-Code payload, as in the case of deployment transaction, consists of function
-invocation details (the name of the function invoked, and associated arguments),
-code-metadata provided by the application and the transaction's creator
-(invoker's u) certificate, TCert<sub>u</sub>. Code payload is signed by the
-transaction certificate TCert<sub>u</sub> of the invoker u, as in the case
-of deploy transactions. As in the case of
-deploy transactions, code-metadata, and tx-metadata, are fields that are
-provided by the application and can be used (as described in Section 4.4),
-for the latter to implement their own access control mechanisms and roles.
+- 代码信息 部署交易中的对应结构具有相同展现。在部署交易中作为代码有效载荷，现在由函数调用明细（调用函数的名字，对应的参数），由应用提供的代码元数据和交易创建者（调用者
+  u）的证书，TCert<sub>u</sub>。在部署交易的情况下，代码有效载荷和是通过调用者u的交易证书TCert<sub>u</sub>签名的。在部署交易的情况下，代码元数据，交易数据是由应用提供来使得信函可以实现他自己的访问控制机制和角色（详见4.4节）。
 
 - Finally, contract-users and chain-validator sections provide the key the payload
 is encrypted with, the invoker's key, and the chain encryption key respectively.
