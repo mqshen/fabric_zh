@@ -1655,117 +1655,51 @@ where appropriate key material is passed to the
 - 代码信息 部署交易中的对应结构具有相同展现。在部署交易中作为代码有效载荷，现在由函数调用明细（调用函数的名字，对应的参数），由应用提供的代码元数据和交易创建者（调用者
   u）的证书，TCert<sub>u</sub>。在部署交易的情况下，代码有效载荷和是通过调用者u的交易证书TCert<sub>u</sub>签名的。在部署交易的情况下，代码元数据，交易数据是由应用提供来使得信函可以实现他自己的访问控制机制和角色（详见4.4节）。
 
-- Finally, contract-users and chain-validator sections provide the key the payload
-is encrypted with, the invoker's key, and the chain encryption key respectively.
-Upon receiving such transactions, the validators decrypt [code-name]<sub>PK<sub>chain</sub></sub> using the
-chain-specific secret key SK<sub>chain</sub> and obtain the invoked chain-code identifier.
-Given the latter, validators retrieve from their local storage the chaincode's
-decryption key SK<sub>c</sub>, and use it to decrypt chain-validators' message,
-that would equip them with the symmetric key K<sub>I</sub> the invocation
-transaction's payload was encrypted with.
-Given the latter, validators decrypt code-info, and execute the chain-code
-function with the specified arguments,
-and the code-metadata attached(See, Section 4.4 for more details on the use of
-code-metadata). While the chain-code is executed, updates of the state of that
-chain-code are possible.
-These are encrypted using the state-specific key K<sub>s</sub> that was defined
-during that chain-code's deployment. In particular, K<sub>s</sub> is used the
-same way K<sub>iTx</sub> is used in the design of our current release
-(See, Section 4.7).  
+- 最后，合同用户和链验证器部分提供密钥和有效荷载是使用调用者的密钥加密的，并分别链加密密钥。在收到此类交易，验证器解密 [code-name]<sub>PK<sub>chain</sub></sub>使用链指定的密钥SK<sub>chain</sub> ，并获取被调用的链代码身份。给定的信封，验证器从本地的获取链代码的解密密钥SK<sub>c</sub>，并使用他来解密链验证器的信息，使用对称密钥
+  K<sub>I</sub>对调用交易的有效荷载加密。给定信函，验证器解密代码信息，并使用指定的参数和附加的代码元数据（参看4.4节的代码元数据详细信息）执行链代码。当链代码执行后，链代码的状态可能就更新了。
+  加密所使用的状态特定的密钥K<sub>s</sub>在链代码部署的时候就定义了。尤其是，在当前版本中K<sub>s</sub> 和K<sub>iTx</sub>被设计成一样的（参看4.7节）。
 
-**Structure of query transaction.**
-Query transactions have the same format as invoke transactions.
-The only difference is that Query transactions do not affect the state
-of the chaincode, and thus there is no need for the state to be retrieved
-(decrypted) and/or updated (encrypted) after the execution of the chaincode
-completes.
+**查询交易的结构.**
+查询交易和调用交易具有同样的格式。唯一的区别是查询交易对链代码的状态没有影响，且不需要在执行完成之后获取（解密的）并/或更新（加密的）状态。
 
-##### 4.3.2.2 Confidentiality against validators
-This section deals with ways of how to support execution of certain transactions
-under a different (or subset) sets of validators in the current chain. This
-section inhibits IP restrictions and will be expanded in the following few weeks.
+##### 4.3.2.2 针对验证器的保密     
+这节阐述了如何处理当前链中的不同（或子集）集合的验证器下的一些交易的执行。本节中抑制IP限制，将在接下的几个星期中进行扩展。
 
 
-#### 4.3.3 Replay attack resistance
-In replay attacks the attacker "replays" a message it "eavesdropped" on the network or ''saw'' on the Blockchain.
-Replay attacks are a big problem here, as they can incur into the validating entities re-doing a computationally intensive
-process (chaincode invocation) and/or affect the state of the corresponding chaincode, while it requires minimal or no
-power from the attacker side.  To make matters worse, if a transaction was a payment transaction, replays could
-potentially incur into the payment being performed more than once, without this being the original intention of the payer.
-Existing systems resist replay attacks as follows:
-* Record hashes of transactions in the system. This solution would require that validators maintain a log of the hash of
-  each transaction that has ever been announced through the network, and compare a new transaction against their locally
-  stored transaction record. Clearly such approach cannot scale for large networks, and could easily result into validators
-  spending a lot of time to do the check of whether a transaction has been replayed, than executing the actual transaction.
-* Leverage state that is maintained per user identity (Ethereum). Ethereum keeps some state, e.g., counter (initially set to 1)
-  for each identity/pseudonym in the system. Users also maintain their own counter (initially set to 0) for each
-  identity/pseudonym of theirs. Each time a user sends a transaction using an identity/pseudonym of his, he increases
-  his local counter by one and adds the resulting value to the transaction. The transaction is subsequently signed by that
-  user identity and released to the network. When picking up this transaction, validators check the counter value included
-  within and compare it with the one they have stored locally; if the value is the same, they increase the local value of
-  that identity's counter and accept the transaction. Otherwise, they reject the transaction as invalid or replay.  
-  Although this would work well in cases where we have limited number of user identities/pseudonyms (e.g., not too large),
-  it would ultimately not scale in a system where users use a different identifier (transaction certificate) per transaction,
-  and thus have a number of user pseudonyms proportional to the number of transactions.
+#### 4.3.3 防重放攻击
+在重放攻击中，攻击者“重放”他在网络上“窃听”或在区块链''看到''的消息    
+由于这样会导致整个验证实体重做计算密集型的动作（链代码调用）和/或影响对应的链代码的状态，同时它在攻击侧又只需要很少或没有资源，所以重放攻击在这里是一个比较大的问题。如果交易是一个支付交易，那么问题就更大了，重放可能会导致在不需要付款人的参与下，多于一次的支付。    
+当前系统使用以下方式来防止重放攻击：
+* 在系统中记录交易的哈希。这个方法要求验证器为每个交易维护一个哈希日志，发布到网络上，并把每个新来的交易与本地存储的交易记录做对比。很明显这样的方法是不能扩展到大网络的，也很容易导致验证器花了比真正做交易还多的时间在检查交易是不是重放上。
+* 利用每个用户身份维护的状态（Ethereum）.
+* Ethereum保存一些状态，即，对每个身份/伪匿名维护他们自己的计数器（初始化为1）。每次用户使用他的身份/伪匿名发送交易是，他都把他的本地计数器加一，并把结果加入到交易中。交易随后使用用户的身份签名，并发送到网络上。当收到交易时，验证器检查计数器并与本地存储的做比较；如果值是一样的，那就增加这个身份在本地的计数器，并接受交易。否则把交易当作无效或重放的而拒绝掉。尽管这样的方法在有限个用户身份/伪匿名(即，不太多)下工作良好。它最终在用户每次交易都使用不同的标识（交易证书），用户的伪匿名与交易数量成正比时无法扩展。
 
-Other asset management systems, e.g., Bitcoin, though not directly dealing with replay attacks, they resist them. In systems
-that manage (digital) assets, state is maintained on a per asset basis, i.e., validators only keep a record of who owns what.
-Resistance to replay attacks come as a direct result from this, as replays of transactions would be immediately be
-deemed as invalid by the protocol (since can only be shown to be derived from older owners of an asset/coin). While this would
-be appropriate for asset management systems, this does not abide with the needs of a Blockchain systems with more generic
-use than asset management.
+其他资产管理系统，即比特币，虽然没有直接处理重放攻击，但它防止了重放。在管理（数字）资产的系统中，状态是基于每个资产来维护的，即，验证器只保存谁拥有什么的记录。因为交易的重放根据协议（因为只能由资产/硬币旧的所有者衍生出来）可以直接认为无效的，所以防重放攻击是这种方式的直接结果。尽管这合适资产管理系统，但是这并不表示在更一般的资产管理中需要比特币系统。
 
-In the fabric, replay attack protection uses a hybrid approach.
-That is, users add in the transaction a nonce that is generated in a different manner
-depending on whether the transaction is anonymous (followed and signed by a transaction certificate) or not
-(followed and signed by a long term enrollment certificate). More specifically:
-
-* Users submitting a transaction with their enrollment certificate should include in that
-  transaction a nonce that is a function of the nonce they used in the previous transaction
-  they issued with the same certificate (e.g., a counter function or a hash). The nonce included
-  in the first transaction of each enrollment certificate can be either pre-fixed by the system
-  (e.g., included in the genesis block) or chosen by the user. In the first case, the genesis block
-  would need to include nonceall , i.e., a fixed number and the nonce used by user with identity
-  IDA for his first enrollment certificate signed transaction would be
-  <center>nonce<sub>round<sub>0</sub>IDA</sub> <- hash(IDA, nonce<sub>all</sub>),</center>
-  where IDA appears in the enrollment certificate. From that point onward successive transactions of
-  that user with enrollment certificate would include a nonce as follows
+在fabric中，防重放攻击使用混合方法。    
+这就是，用户在交易中添加一个依赖于交易是匿名（通过交易证书签名）或不匿名（通过长期的注册证书签名）来生成的nonce。更具体的：
+* 用户通过注册证书来提交的交易需要包含nonce。其中nonce是在之前使用同一证书的交易中的nonce函数（即计数器或哈希）。包含在每张注册证书的第一次交易中的nonce可以是系统预定义的（即，包含在创始块中）或由用户指定。在第一种情况中，创世区块需要包含nonceall，即，一个固定的数字和nonce被用户与身份IDA一起用来为他的第一笔注册证书签名的交易将会
+<center>nonce<sub>round<sub>0</sub>IDA</sub> <- hash(IDA, nonce<sub>all</sub>),</center>
+其中IDA出现在注册证书中。从该点之后的这个用户关于注册证书的连续交易需要包含下面这样的nonce
   <center>nonce<sub>round<sub>i</sub>IDA</sub> <- hash(nonce<sub>round<sub>{i-1}</sub>IDA</sub>),</center>
-  that is the nonce of the ith transaction would be using the hash of the nonce used in the {i-1}th transaction of that certificate.
-  Validators here continue to process a transaction they receive, as long as it satisfies the condition mentioned above.
-  Upon successful validation of transaction's format, the validators update their database with that nonce.
+这表示第i次交易的nonce需要使用这样证书第{i-1}次交易的nonce的哈希。验证器持续处理他们收到的只要其满足上述条件的交易。一旦交易格式验证成功，验证器就使用nonce更新他们的数据库。
 
-  **Storage overhead**:
+  **存储开销**:
 
-  1. on the user side: only the most recently used nonce,
+  1. 在用户侧：只有最近使用的nonce
 
-  2. on validator side: O(n), where n is the number of users.
-* Users submitting a transaction with a transaction certificate
-  should include in the transaction a random nonce, that would guarantee that
-  two transactions do not result into the same hash. Validators add the hash of
-  this transaction in their local database if the transaction certificate used within
-  it has not expired. To avoid storing large amounts of hashes, validity periods of transaction certificates
-  are leveraged. In particular validators maintain an updated record of received
-  transactions' hashes within the current or future validity period.
+  2. 在验证器侧: O(n), 其中n是用户的数量
+* 用户使用交易证书提交的交易需要包含一个随机的nonce，这样就保证两个交易不会产生同样的哈希。如果交易证书没有过期的话，验证器就向本地数据库存储这比交易的哈希。为了防止存储大量的哈希，交易证书的有效期被利用。特别是验证器为当前或未来有效周期来维护一个接受交易哈希的更新记录。
 
-  **Storage overhead** (only makes sense for validators here):  O(m), where m is the approximate number of
-  transactions within a validity period and corresponding validity period identifier (see below).
+  **存储开销** (这里只影响验证器):  O(m), 其中m近似于有效期内的交易和对应的有效标识的数量（见下方）
 
-### 4.4 Access control features on the application
+### 4.4 应用的访问控制功能
 
-An application, is a piece of software that runs on top of a Blockchain client software, and,
-performs a special task over the Blockchain, i.e., restaurant table reservation.
-Application software have a version of
-developer, enabling the latter to generate and manage a couple of chaincodes that are necessary for
-the business this application serves, and a client-version that would allow the application's end-users
-to make use of the application, by invoking these chain-codes.
-The use of the Blockchain can be transparent to the application end-users or not.
+应用是抱在区块链客户端软件上的一个具有特定功能的软件。如餐桌预订。应用软件有一个版本开发商，使后者可以生成和管理一些这个应用所服务的行业所需要的链代码，而且，客户端版本可以允许应用的终端用户调用这些链代码。应用可以选择是否对终端用户屏蔽区块链。
 
-This section describes how an application leveraging chaincodes can implement its own access control policies,
-and guidelines on how our Membership services PKI can be leveraged for the same purpose.
+本节介绍应用中如何使用链代码来实现自己的访问控制策略，并提供如何使用会籍服务来达到相同的目的。
 
-The presentation is divided into enforcement of invocation access control,
-and enforcement of read-access control by the application.
+这个报告可以根据应用分为调用访问控制，和读取访问控制。
 
 
 #### 4.4.1 Invocation access control
