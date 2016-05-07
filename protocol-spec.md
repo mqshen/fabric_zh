@@ -1901,27 +1901,19 @@ message Transaction {
 要注意的是验证器在整个执行链代码过程中**不提供**任何解密预测。
 对payload解密由基础设施自己负责（以及它附近的代码元数据域）。并提供他们给部署/执行的容器。
 
-### 4.5 Online wallet service
+### 4.5 在线钱包服务     
+这一节描述了钱包服务的安全设计，这是一个用户可以注册，移动他们的秘密材料到，办理交易的节点。    
+由于钱包服务是一个用户秘密材料所有权的服务，所以要杜绝没有安全授权机制的恶意钱包服务可以成功模拟客户。    
+因此，我们强调的是，设计一种**值得信赖**的，只有在代表用户的客户端同意的情况下，钱包服务才能执行交易。
+这里有两种终端用户注册到在线钱包服务的情况：
 
+1. 当用户注册到注册机构并获得他/她的 `<enrollID, enrollPWD>`，但是没有安装客户端来触发完整的注册过程。
 
-This section describes the security design of a wallet service, which in this case is a node where end-users can register, move their key material to, and perform transactions through.
-Because the wallet service is in possession of the user's key material, it is clear that without a secure authorization
-mechanism in place a malicious wallet service could successfully impersonate the user.
-We thus emphasize that this design corresponds to a wallet service that is **trusted** to only perform transactions
-on behalf of its clients, with the consent of the latter.
-There are two cases for the registration of an end-user to an online wallet service:
+2. 用户已经安装客户端并完成注册阶段
 
-1. When the user has registered with the registration authority and acquired his/her `<enrollID, enrollPWD>`,
-   but has not installed the client to trigger and complete the enrollment process;
-2. When the user has already installed the client, and completed the enrollment phase.
+首先，用户与在线钱包服务交互，允许他们进行身份验证的钱包服务发布证书。即用户给定用户名和密码，其中用户名在会籍服务中识别用户，标记为AccPub，密码是关联的秘密，标记为AccSec，这是由用户和服务分享的。
 
-Initially, the user interacts with the online wallet service to issue credentials that would allow him to authenticate
-to the wallet service. That is, the user is given a username, and password, where username identifies the user in the
-membership service, denoted by AccPub, and password is the associated secret, denoted by AccSec, that is **shared** by
-both user and service.
-
-To enroll through the online wallet service, a user must provide the following request
-object to the wallet service:
+为了通过在线钱包服务注册，用户必须提供下面请求对象到钱包服务：
 
 
     AccountRequest /* account request of u \*/
@@ -1931,13 +1923,10 @@ object to the wallet service:
         AccSecProof<sub>u</sub>  /* proof of AccSec<sub>u</sub>\*/
      }
 
-OBCSecCtx refers to user credentials, which depending on the stage of his enrollment process, can be either his enrollment ID and password, `<enrollID, enrollPWD>` or his enrollment certificate and associated secret key(s)
-(ECert<sub>u</sub>, sk<sub>u</sub>),  where  sk<sub>u</sub> denotes for simplicity signing and decryption secret of the user.
-The content of AccSecProof<sub>u</sub> is an HMAC on the rest fields of request using the shared secret. Nonce-based methods
-similar to what we have in the fabric can be used to protect against replays.
-OBCSecCtx would give the online wallet service the necessary information to enroll the user or issue required TCerts.
+OBCSecCtx指向用户证书，它依赖于注册过程中的阶段。可以是用户的注册ID和密码，`<enrollID, enrollPWD>` 或他的注册证书和关联的密钥(ECert<sub>u</sub>, sk<sub>u</sub>),  其中 sk<sub>u</sub>是用户签名和解密密钥的简化标记。    
+OBCSecCtx需要给在线钱包服务必要的信息来注册用户和发布需要的TCerts。
 
-For subsequent requests, the user u should provide to the wallet service a request of similar format.
+对于后续的请求，用户u需要提供给钱包服务的请求与虾子面这个格式类似。
 
      TransactionRequest /* account request of u \*/
      {
@@ -1946,170 +1935,103 @@ For subsequent requests, the user u should provide to the wallet service a reque
           AccSecProof<sub>u</sub>	/* proof of AccSec<sub>u</sub> \*/
      }
 
-Here, TxDetails refer to the information needed by the online service to construct a transaction on behalf of the user, i.e.,
-the type, and user-specified content of the transaction.
+这里，TxDetails指向在线服务代表用户构造交易所需要的信息，如类型，和用户指定的交易的内容。
+AccSecProof<sub>u</sub>是对应请求中剩下的域的使用共享密钥的HMAC。   
+Nonce-based方法与我们在fabric中一样可以防止重放攻击。    
 
-AccSecProof<sub>u</sub> is again an HMAC on the rest fields of request using the shared secret.
-Nonce-based methods similar to what we have in the fabric can be used to protect against replays.
-
-TLS connections can be used in each case with server side authentication to secure the request at the
-network layer (confidentiality, replay attack protection, etc)
+TLS连接可以用在每种服务器端认证的情况，在网络层对请求加密（保密，防止重放攻击，等）
 
 
+### 4.6 网络完全(TLS)
+TLS CA需要给（非验证）peer，验证器，和单独的客户端（或具有存储私钥的游览器）发放TLS证书的能力。最好，这些证书可以使用之前的类型来区分。    
+各个类型的CA（如TLS CA, ECA, TCA）的TLS证书有可以通过中间CA（如，一个根CA的下属CA）发放。这里没有特定流量分析的问题，任意给定的TLS连接都可以相互验证，除了请求TLS CA的TLS证书的时候。
+
+在当前的实现中，唯一的信任锚点是TLS CA的自签名证书来适应与所有三个（共址）服务器（即TLS CA,TCA和ECA）进行通信的单个端口限制。因此，与TLS CA的TLS握手来与TLS CA建立连接，所得到的会话密钥会传递给共址的TCA和ECA。因此，TCA和ECA的自签名证书的有效性的信任继承自对TLS CA的信任。在不提高TLS CA在其他CA之上的实现中，信任锚点需要由TLS CA和其他CA都认证的根CA替代。
 
 
-### 4.6 Network security (TLS)
-The TLS CA should be capable of issuing TLS certificates to (non-validating) peers, validators, and individual clients (or browsers capable of storing a private key). Preferably, these certificates are distinguished by type, per above. TLS certificates for CAs of the various types (such as TLS CA, ECA, TCA) could be issued by an intermediate CA (i.e., a CA that is subordinate to the root CA). Where there is not a particular traffic analysis issue, any given TLS connection can be mutually authenticated, except for requests to the TLS CA for TLS certificates.
+### 4.7 当前版本的限制
+这一小节列出了当前版本的fabric的限制。
+具体的关注点是客户端操作和交易保密性设计，如4.7.1和4.7.2所述。
 
-In the current implementation the only trust anchor is the TLS CA self-signed certificate in order to accommodate the limitation of a single port to communicate with all three (co-located) servers, i.e., the TLS CA, the TCA and the ECA. Consequently, the TLS handshake is established with the TLS CA, which passes the resultant session keys to the co-located TCA and ECA. The trust in validity of the TCA and ECA self-signed certificates is therefore inherited from trust in the TLS CA. In an implementation that does not thus elevate the TLS CA above other CAs, the trust anchor should be replaced with a root CA under which the TLS CA and all other CAs are certified.
+ - 客户端注册和交易的创建是由受信任不会模拟用户的非验证peer来完全执行。参看4.7.1节得到更多j信息。
+ - 链代码只能被系统的成员实体访问是保密性的最低要求，即，注册到我们会籍服务的验证器和用户，其它的都不能访问。后者包含可以访问到存储区域维护的总账，或者可以看到在验证器网络上公布的交易。第一个发布版本在4.7.2小节中详细介绍。
+ - 代码为注册CA（ECA）和交易CA（TCA）使用自签名的证书
+ - 防重放攻击机制还不可用
+ - 调用访问控制可以在应用层强制执行：
+   安全性的保证取决于应用对基础设施工具的正确使用。这说明如果应用忽略了fabric提供的交易绑定*绑定*安全交易的处理可能在存在风险。
 
+#### 4.7.1 简化客户端
 
+客户端的注册和交易的创建是由非验证peer以在线钱包的角色全部执行的。
+集体的，终端用户利用注册证书<username, password> 在非验证peer开立账户，并使用这些证书进一步授权peer建立代表用户的交易。
+需要注意的是，这样的设计不会为peer代表用户提交的交易提供安全**授权**，如恶意peer可以模拟用户。
+网上钱包的涉及安全问题设计规范的详细信息，可以在4.5节找到。
+目前用户可以注册和执行交易的peer是一。
 
-### 4.7 Restrictions in the current release
-This section lists the restrictions of the current release of the fabric.
-A particular focus is given on client operations and the design of transaction confidentiality,
-as depicted in Sections 4.7.1 and 4.7.2.
+#### 4.7.2 简化交易保密
 
- - Client side enrollment and transaction creation is performed entirely by a
-   non-validating peer that is trusted not to impersonate the user.
-   See, Section 4.7.1 for more information.
- - A minimal set of confidentiality properties where a chain-code is accessible
-   by any entity that is member of the system, i.e., validators and users who
-   have registered to our membership services, and not accessible by any-one else.
-   The latter include any party that has access to the storage area where the
-   ledger is maintained, or other entities that are able to see the transactions
-   that are announced in the validator network. The design of the first release
-   is detailed in subsection 4.7.2
- - The code utilizes self-signed certificates for entities such as the
-   enrollment CA (ECA) and the transaction CA (TCA)
- - Replay attack resistance mechanism is not available
- - Invocation access control can be enforced at the application layer:
-   it is up to the application to leverage the infrastructure's tools properly
-   for security to be guaranteed. This means, that if the application ignores
-   to *bind* the transaction binding offered by our fabric, secure transaction
-   processing  may be at risk.
+**免责声明:** 当前版本的交易保密是最小的，这被用来作为中间步骤来达到允许在未来版本中的细粒度（调用）的访问控制的执行设计。
 
-#### 4.7.1 Simplified client
+在当前的格式，交易的保密仅仅在链层面提供，即，保存在总账中的交易内容对链的所有成员，如，验证器和用户，都是可读的。于此同时，不是系统的成员的应用审计人员，可以给予被动的观察区块链数据的手段。同时保证给予他们只是为了与被审计应用程序相关的交易。状态通过一种加密，同时不破坏底层共识网络的正常运行的方式来满足这样的审计要求
 
-Client side enrollment and transaction creation is performed entirely by a non-validating peer who plays the role of an online wallet.
-In particular, the end-user leverages his registration credentials <username, password> to open an account to a non-validating peer
-and uses these credentials to further authorize the peer to build transactions on the user's behalf. It needs to be noted, that such
-a design does not provide secure **authorization** for the peer to submit transactions on behalf of the user, as a malicious peer
-could impersonate the user. Details on the specifications of a design that deals with the security issues of online wallet can be found is Section 4.5.
-Currently the maximum number of peers a user can register to and perform transactions through is one.
+更具体的，当前使用对称密钥加密来提供交易保密性。    
+在这种背景下，一个最主要的挑战是特定于区块链的设置，验证器需要在区块链的状态上打成共识，即，除了交易本身，还包括个人合同或链代码的状态更新。
+虽然对于非机密链代码这是微不足道的，对于机密链代码，需要设计状态的加密机制，使得所得的密文语义安全，然而，如果明文状态是相同的那么他们就相等。
 
-#### 4.7.2 Simplified transaction confidentiality
+为了克服这一难题，fabric利用了密钥的层级，使用相同的密钥进行加密来降低密文数。同时，由于部分这些密钥被用于IV的生成，这使得验证方执行相同的事务时产生完全相同的密文（这是必要的，以保持不可知到底层共识算法），并通过只披露给审计实体最相关的密钥来提供控制审计的可能性。
 
-**Disclaimer:** The current version of transaction confidentiality is minimal, and will be used as an intermediate step
-to reach a design that allows for fine grain (invocation) access control enforcement in the next versions.
+**方法描述:**
+会籍服务为总账生成对称密钥 (K<sub>chain</sub>)，这是在注册到区块链系统所有实体时发布的，如，客户端和验证实体已通过链的会籍服务发放证书。
+在注册阶段，用户获取（像之前一样）一张注册证书，为用户u<sub>i</sub>记作Cert<sub>u<sub>i</sub></sub>，每个验证器v<sub>j</sub>获取它的被记作Cert<sub>v<sub>j</sub></sub>的证书。
 
-In its current form, confidentiality of transactions is offered solely at the chain-level, i.e., that the
-content of a transaction included in a ledger, is readable by all members of that chain, i.e., validators
-and users. At the same time, application auditors that are not member of the system can be given
-the means to perform auditing by passively observing the Blockchain data, while
-guaranteeing that they are given access solely to the transactions related to the application under audit.
-State is encrypted in a way that such auditing requirements are satisfied, while not disrupting the
-proper operation of the underlying consensus network.
+实体注册将得到提高，如下所示。除了注册证书，用户希望以匿名方式参与交易发放交易证书。
+为了简化我们把用户 u<sub>i</sub> 的交易证书记作 TCert<sub>u<sub>i</sub></sub>。    
+交易证书包含签名密钥对的公共部分记作 (tpk<sub>u<sub>i</sub></sub>,tsk<sub>u<sub>i</sub></sub>)。
 
-More specifically, currently symmetric key encryption is supported in the process of offering transaction confidentiality.
-In this setting, one of the main challenges that is specific to the blockchain setting,
-is that validators need to run consensus over the state of the blockchain, that, aside the transactions themselves,
-also includes the state updates of individual contracts or chaincodes. Though this is trivial to do for non-confidential chaincodes,  
-for confidential chaincodes, one needs to design the state encryption mechanism such that the resulting ciphertexts are
-semantically secure, and yet, identical if the plaintext state is the same.
-
-
-To overcome this challenge, the fabric utilizes a key hierarchy that reduces the number of ciphertexts
-that are encrypted under the same key. At the same time, as some of these keys are used for the generation of IVs,
-this allows the validating parties to generate exactly the same ciphertext when executing the same transaction
-(this is necessary to remain agnostic to the underlying consensus algorithm) and offers the possibility of controlling audit by disclosing to auditing entities only the most relevant keys.
-
-
-**Method description:**
-Membership service generates a symmetric key for the ledger (K<sub>chain</sub>) that is distributed
-at registration time to all the entities of the blockchain system, i.e., the clients and the
-validating entities that have issued credentials through the membership service of the chain.
-At enrollment phase, user obtain (as before) an enrollment certificate, denoted by Cert<sub>u<sub>i</sub></sub>
-for user u<sub>i</sub> , while each validator v<sub>j</sub> obtain its enrollment certificate denoted by Cert<sub>v<sub>j</sub></sub>.
-
-Entity enrollment would be enhanced, as follows. In addition to enrollment certificates,
-users who wish to anonymously participate in transactions issue transaction certificates.
-For simplicity transaction certificates of a user u<sub>i</sub> are denoted by TCert<sub>u<sub>i</sub></sub>.
-Transaction certificates include the public part of a signature key-pair denoted by (tpk<sub>u<sub>i</sub></sub>,tsk<sub>u<sub>i</sub></sub>).
-
-In order to defeat crypto-analysis and enforce confidentiality, the following key hierarchy is considered for generation and validation of confidential transactions:
-To submit a confidential transaction (Tx) to the ledger, a client first samples a nonce (N), which is required to be unique among all the transactions submitted to the blockchain, and derive a transaction symmetric
-key (K<sub>Tx</sub>) by applying the HMAC function keyed with K<sub>chain</sub> and on input the nonce, K<sub>Tx</sub>= HMAC(K<sub>chain</sub>, N). From K<sub>Tx</sub>, the client derives two AES keys:
-K<sub>TxCID</sub> as HMAC(K<sub>Tx</sub>, c<sub>1</sub>), K<sub>TxP</sub> as HMAC(K<sub>Tx</sub>, c<sub>2</sub>)) to encrypt respectively the chain-code name or identifier CID and code (or payload) P.
-c<sub>1</sub>, c<sub>2</sub> are public constants. The nonce, the Encrypted Chaincode ID (ECID) and the Encrypted Payload (EP) are added in the transaction Tx structure, that is finally signed and so
-authenticated. Figure below shows how encryption keys for the client's transaction are generated. Arrows in this figure denote application of an HMAC, keyed by the key at the source of the arrow and
-using the number in the arrow as argument. Deployment/Invocation transactions' keys are indicated by d/i respectively.
-
+为了防止密码分析和执行保密，下面的密钥层级被用来生成和验证保密的交易：
+为了提交保密交易（Tx）到总账，客户端首先选择一个nonce(N)，这是需要提交区块链的所有交易中是唯一的，并通过以K<sub>chain</sub>作为密钥，nonce作为输入的HMAC函数生成一个交易对称密钥（K<sub>Tx</sub>)）K<sub>Tx</sub>= HMAC(K<sub>chain</sub>, N)。
+对于K<sub>Tx</sub>，客户端生成两个AES密钥：
+K<sub>TxCID</sub>当作HMAC(K<sub>Tx</sub>, c<sub>1</sub>), K<sub>TxP</sub> 当作 HMAC(K<sub>Tx</sub>, c<sub>2</sub>)) 分别加密链代码名称或标识CID和代码（或payload）P.
+c<sub>1</sub>, c<sub>2</sub> 是公共常量。nonce，加密的链代码ID（ECID）和加密的Payload（EP）被添加到交易Tx结构中，即最终签名和认证的。
+下面的图显示了如何产生用于客户端的事务的加密密钥。这张图中的剪头表示HMAC的应用，源由密钥锁定和使用在箭头中的数量作为参数。部署/调用交易的密钥键分别用d/I表示。
 
 
 ![FirstRelease-clientSide](./images/sec-firstrel-1.png)
 
-To validate a confidential transaction Tx submitted to the blockchain by a client,
-a validating entity first decrypts ECID and EP by re-deriving K<sub>TxCID</sub> and K<sub>TxP</sub>
-from K<sub>chain</sub> and Tx.Nonce as done before. Once the Chaincode ID and the
-Payload are recovered the transaction can be processed.
+为了验证客户端提交到区块链的保密交易Tx，验证实体首先通过和之前一样的K<sub>chain</sub>和Tx.Nonce再生成K<sub>TxCID</sub>和K<sub>TxP</sub>来解密ECID和EP。一旦链代码和Payload被恢复就可以处理交易了。
 
 ![FirstRelease-validatorSide](./images/sec-firstrel-2.png)
 
-When V validates a confidential transaction, the corresponding chaincode can access and modify the
-chaincode's state. V keeps the chaincode's state encrypted. In order to do so, V generates symmetric
-keys as depicted in the figure above. Let iTx be a confidential transaction invoking a function
-deployed at an early stage by the confidential transaction dTx (notice that iTx can be dTx itself
-in the case, for example, that dTx has a setup function that initializes the chaincode's state).
-Then, V generates two symmetric keys  K<sub>IV</sub>  and K<sub>state</sub> as follows:
+当V验证一个机密事务，相应的链代码可以访问和修改链代码的状态。V保持链代码的状态加密。为了做到这一点，V生成如上图所示的对称密钥
+。让iTX是一个之前由保密交易dTx部署的保密的交易调用一个函数（注意iTx可以是dTx本身）在这种情况下，例如，dTx具有初始化链代码状态的设置函数。然后V像下面一样生成两个对称密钥K<sub>IV</sub>和K<sub>state</sub>：
 
-1. It computes  as  K<sub>dTx</sub> , i.e., the transaction key of the corresponding deployment
-   transaction, and then N<sub>state</sub> = HMAC(K<sub>dtx</sub> ,hash(N<sub>i</sub>)), where N<sub>i</sub>
-   is the nonce appearing in the invocation transaction, and *hash* a hash function.
-2. It sets K<sub>state</sub> = HMAC(K<sub>dTx</sub>, c<sub>3</sub> || N<sub>state</sub>),
-   truncated opportunely deeding on the underlying cipher used to encrypt; c<sub>3</sub> is a constant number
-3. It sets K<sub>IV</sub> = HMAC(K<sub>dTx</sub>, c<sub>4</sub> || N<sub>state</sub>); c<sub>4</sub> is a constant number
+1. 计算K<sub>dTx</sub>如，对应部署交易的交易密钥和N<sub>state</sub> = HMAC(K<sub>dtx</sub> ,hash(N<sub>i</sub>))其中N<sub>i</sub>是在调用交易中出现的nonce， *hash*是哈希函数
+2. 它设K<sub>state</sub> = HMAC(K<sub>dTx</sub>, c<sub>3</sub> || N<sub>state</sub>)，截断用来加密底层密码； c<sub>3</sub> 是一个常数
+3. 它设K<sub>IV</sub> = HMAC(K<sub>dTx</sub>, c<sub>4</sub> || N<sub>state</sub>); c<sub>4</sub> 是一个常数
 
+为了加密状态变量S，验证器首先生成IV像 HMAC(K<sub>IV</sub>, crt<sub>state</sub>)正确截断，其中 crt<sub>state</sub>是计数器值，并在每次同样链代码调用时请求状态更新时增加。当链代码执行终止是计数器丢弃。IV产生之后，V认证加密（即，GSM模式）S的值连接Nstate（实际上，N<sub>state</sub>只需要认证而不需要加密）。在所得的密文（CT）， N<sub>state</sub>和IV被追加。为了解密加密状态CT||  N<sub>state'</sub>，验证器首次生成对称密钥K<sub>dTX</sub>' ,K<sub>state</sub>'，然后解密CT。
 
-In order to encrypt a state variable S, a validator first generates the IV as HMAC(K<sub>IV</sub>, crt<sub>state</sub>)
-properly truncated, where crt<sub>state</sub> is a counter value that increases each time a state update
-is requested for the same chaincode invocation. The counter is discarded after the execution of
-the chaincode terminates. After IV has been generated, V encrypts with authentication (i.e., GSM mode)
-the value of S concatenated with Nstate(Actually, N<sub>state</sub>  doesn't need to be encrypted but
-only authenticated). To the resulting ciphertext (CT), N<sub>state</sub> and the IV used is appended.
-In order to decrypt an encrypted state CT|| N<sub>state'</sub> , a validator first generates the symmetric
-keys K<sub>dTX</sub>' ,K<sub>state</sub>' using N<sub>state'</sub> and then decrypts CT.
+IV的生成: 任何底层共识算法是不可知的，所有的验证各方需要一种方法以产生相同的确切密文。为了做到这一点，需要验证使用相同的IV。重用具有相同的对称密钥相同的IV完全打破了底层密码的安全性。因此，前面所描述的方法制备。特别是，V首先通过计算HMAC(K<sub>dTX</sub>, c<sub>4</sub> || N<sub>state</sub> )派生的IV生成密钥K<sub>IV</sub>，其中c<sub>4</sub>是一个常数，并为(dTx,
+iTx)保存计数器crt<sub>state</sub>初始设置为0。然后，每次必须生成一个新的密文，验证器通过计算HMAC(K<sub>IV</sub>, crt<sub>state</sub>)作为输出生成新的IV，然后为crt<sub>state</sub>增加1。
 
-Generation of IVs: In order to be agnostic to any underlying consensus algorithm, all the validating
-parties need a method to produce the same exact ciphertexts. In order to do so, the validators need
-to use the same IVs. Reusing the same IV with the same symmetric key completely breaks the security
-of the underlying cipher. Therefore, the process described before is followed. In particular, V first
-derives an IV generation key K<sub>IV</sub> by computing HMAC(K<sub>dTX</sub>, c<sub>4</sub> || N<sub>state</sub> ),
-where c<sub>4</sub> is a constant number, and keeps a counter crt<sub>state</sub> for the pair
-(dTx, iTx) with is initially set to 0. Then, each time a new ciphertext has to be generated, the validator
-generates a new IV by computing it as the output of HMAC(K<sub>IV</sub>, crt<sub>state</sub>)
-and then increments the crt<sub>state</sub> by one.
-
-Another benefit that comes with the above key hierarchy is the ability to enable controlled auditing.
-For example, while by releasing K<sub>chain</sub> one would provide read access to the whole chain,
-by releasing only K<sub>state</sub> for a given pair of transactions (dTx,iTx) access would be granted to a state
-updated by iTx, and so on.
+上述密钥层次结构的另一个好处是控制了审计的能力。
+例如，当发布K<sub>chain</sub>会提供对整个供应链的读取权限，当只为交易的(dTx,iTx)发布K<sub>state</sub>访问只授予由iTx更新的状态，等等
 
 
-The following figures demonstrate the format of a deployment and invocation transaction currently available in the code.
+下图展示一个部署和调用交易在目前在代码中的形式。
 
 ![FirstRelease-deploy](./images/sec-firstrel-depl.png)
 
 ![FirstRelease-deploy](./images/sec-firstrel-inv.png)
 
 
-One can notice that both deployment and invocation transactions consist of two sections:
+可以注意到，部署和调用交易由两部分组成：
 
-* Section *general-info*: contains the administration details of the transaction, i.e., which chain this transaction corresponds to (is chained to), the type of transaction (that is set to ''deploymTx'' or ''invocTx''), the version number of confidentiality policy implemented, its creator identifier (expressed by means of TCert of Cert) and a nonce (facilitates primarily replay-attack resistance techniques).
+* *基本信息*部分: 包含交易管理细节，如，把这个交易链接到的（被链接到的），交易的类型（被设置为''deploymTx''或''invocTx''），保密策略实现的版本号，它的创建者标识（由TCert，Cert表达）和一个nonce（主要为了防止重放攻击）
 
-* Section *code-info*: contains information on the chain-code source code. For deployment transaction this is essentially the chain-code identifier/name and source code, while for invocation chain-code is the name of the function invoked and its arguments. As shown in the two figures code-info in both transactions are encrypted ultimately using the chain-specific symmetric key K<sub>chain</sub>.
+* *代码信息*部分: 包含在链代码的源代码的信息。本质上是链码标识符/名称和源代码的部署交易，而对调用链代码是是被调用函数名称和它的参数。就像在两张图中展示的代码信息那样他们最终是使用链指定的对称密钥K<sub>chain</sub>加密的。
 
-## 5. Byzantine Consensus
+## 5. 拜占庭共识    
 The ``obcpbft`` package is an implementation of the seminal [PBFT](http://dl.acm.org/citation.cfm?id=571640 "PBFT") consensus protocol [1], which provides consensus among validators despite a threshold of validators acting as _Byzantine_, i.e., being malicious or failing in an unpredictable manner. In the default configuration, PBFT tolerates up to t<n/3 Byzantine validators.
 
 Besides providing a reference implementation of the PBFT consensus protocol, ``obcpbft`` plugin contains also implementation of the novel _Sieve_ consensus protocol. Basically the idea behind Sieve is to provide a fabric-level protection from _non-deterministic_ transactions, which PBFT and similar existing protocols do not offer. ``obcpbft`` is easily configured to use either the classic PBFT or Sieve.  
