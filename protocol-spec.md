@@ -1702,29 +1702,20 @@ where appropriate key material is passed to the
 这个报告可以根据应用分为调用访问控制，和读取访问控制。
 
 
-#### 4.4.1 Invocation access control
-To allow the application to implement its own invocation access control at the
-application layer securely, special support by the fabric must be provided.
-In the following we elaborate on the tools exposed by the fabric to the
-application for this purpose, and provide guidelines on how these should be used
-by the application for the latter to enforce access control securely.
+#### 4.4.1 调用访问控制    
+为了允许应用在应用层安全的实现自己的访问问控制，fabric需要提供特定的支持。在下面的章节中，我们详细的说明的fabric为了达到这个目的而给应用提供的工具，并为应用如何来使用它们使得后者能安全的执行访问控制提供方针。
 
+**来自基础设施的支持.**
+把链代码的创建者标记为 *u<sub>c</sub>*，为了安全的实现应用层自己的调用访问控制，fabric必须需要提供特定的支持。    
+更具体的，fabric层提供下面的访问能力：
 
-**Support from the infrastructure.**
-For the chaincode creator, let it be, *u<sub>c</sub>*,
-to be able to implement its own invocation access control at
-the application layer securely, special support by the fabric must be provided.
-More specifically fabric layer gives access to following capabilities:
+1. 客户端-应用可以请求fabric使用指定的客户端拥有的交易证书或注册证书来签名和验证任何消息； 这是由Certificate Handler interface来处理的。
 
-1. The client-application can request the fabric to sign and verify any message with specific transaction certificates or enrollment certificate the client owns; this is expressed via the Certificate Handler interface
+2. 客户端-应用可以请求fabric一个*绑定*将身份验证数据绑定到底层的交易传输的应用程序；这是由Certificate Handler interface来处理的。
 
-2. The client-application can request the fabric a unique *binding* to be used to bind authentication data of the application to the underlying transaction transporting it; this is expressed via the Transaction Handler interface
+3. 为了支持交易格式，允许指定被传递给链码在部署和调用时间的应用的元数据；后者被标记为代码元数据。
 
-3. Support for a transaction format, that allows for the application to specify metadata, that are passed to the chain-code at deployment, and invocation time; the latter denoted by code-metadata.
-
-
-The **Certificate Handler** interface allows to sign and verify any message using signing key-pair underlying the associated certificate.
-The certificate can be a TCert or an ECert.
+**Certificate Handler**接口允许使用底层证书的密钥对来对任意消息进行签名和验证。证书可以是TCert或ECert。
 
 ```
 // CertificateHandler exposes methods to deal with an ECert/TCert
@@ -1743,15 +1734,9 @@ type CertificateHandler interface {
     GetTransactionHandler() (TransactionHandler, error)
 }
 ```
-
-
-The **Transaction Handler** interface allows to create transactions and give access to the underlying *binding* that can be leveraged to link
-application data to the underlying transaction. Bindings are a concept that have been introduced in network transport protocols (See, https://tools.ietf.org/html/rfc5056),
-known as *channel bindings*, that *allows applications to establish that the two end-points of a secure channel at one network layer are the same as at a higher layer
-by binding authentication at the higher layer to the channel at the lower layer.
-This allows applications to delegate session protection to lower layers, which has various performance benefits.*
-Transaction bindings offer the ability to uniquely identify the fabric layer of the transaction that serves as the container that
-application data uses to be added to the ledger.
+**Transaction Handler**借口允许创建交易和访问可利用的底层*绑定*来链接应用数据到底层交易。绑定是在网络传输协议引入的概念（参见，https://tools.ietf.org/html/rfc5056）记作*通道绑定*，*允许应用在网络层两端的建立安全通道，与在高层的认证绑定和在低层是一样的。
+这允许应用代理保护低层会话，这具有很多性能优势。*
+交易绑定提供识别fabric层次交易的身份，这就是应用数据要加入到总账的容器。
 
 ```
 // TransactionHandler represents a single transaction that can be uniquely determined or identified by the output of the GetBinding method.
@@ -1774,10 +1759,9 @@ type TransactionHandler interface {
     NewChaincodeQuery(chaincodeInvocation *obc.ChaincodeInvocationSpec, uuid string) (*obc.Transaction, error)
 }
 ```
-For version 1, *binding* consists of the *hash*(TCert, Nonce), where TCert, is the transaction certificate
-used to sign the entire transaction, while Nonce, is the nonce number used within.
+对于版本1，*绑定*由*hash*（TCert, Nonce）组成，其中TCert是给整个交易签名的交易证书，Nonce是交易所使用的nonce。
 
-The **Client** interface is more generic, and offers a mean to get instances of the previous interfaces.
+**Client**接口更通用，提供之前接口实例的手段。
 
 ```
 type Client interface {
@@ -1796,13 +1780,8 @@ type Client interface {
 }
 ```
 
-To support application-level access control lists for controlling chaincode
-invocation, the fabric's transaction and chaincode specification format
-have an additional field to store application-specific metadata.
-This field is depicted in both figures 1, by code-metadata. The content of this field is decided
-by the application, at the transaction creation time.
-The fabric layer treats it as an unstructured stream of bytes.
-
+为了向链代码调用控制提供应用级别的的访问控制列表，fabric的交易和链代码指定的格式需要存储在应用特定元数据的额外的域。
+这个域在图1中通过元数据展示出来。这个域的内容是由应用在交易创建的时候决定的。fabric成把它当作非结构化的字节流。
 
 
 ```
@@ -1828,114 +1807,99 @@ message Transaction {
 }
 ```
 
-To assist chaincode execution, at the chain-code invocation time, the validators provide the
-chaincode with additional information, like the metadata and the binding.  
+为了帮助链代码执行，在链代码调用的时候，验证器为链代码提供额外信息，如元数据和绑定。
 
-**Application invocation access control.**
-This section describes how the application can leverage the means provided by the fabric
-to implement its own access control on its chain-code functions.
-In the scenario considered here, the following entities are identified:
+**应用调用访问控制.**
+这一节描述应用如何使用fabric提供的手段在它的链代码函数上实现它自己的访问控制。
+这里考虑的情况包括：
 
-1. **C**: is a chaincode that contains a single function, e.g., called *hello*;
+1. **C**: 是只包含一个函数的链代码，如，被成为*hello*
 
-2. **u<sub>c</sub>**: is the **C** deployer;
+2. **u<sub>c</sub>**: 是**C**的部署;
 
-3. **u<sub>i</sub>**: is a user who is authorized to invoke **C**'s functions. User u<sub>c</sub> wants to ensure that only u<sub>i</sub> can invoke the function *hello*.
+3. **u<sub>i</sub>**: 是被授权调用**C**的用户。用户u<sub>c</sub>希望只有u<sub>i</sub>可以调用函数*hello*
 
-*Deployment of a Chaincode:* At deployment time, u<sub>c</sub> has full control on the deployment transaction's metadata,
- and can be used to store a list of ACLs (one per function), or a list of roles that are needed by the application. The format which is used to store these ACLs is up to the deployer's application, as the chain-code is the one
-who would need to parse the metadata at execution time.
-To define each of these lists/roles, u<sub>c</sub> can use any TCerts/Certs of the u<sub>i</sub> (or, if applicable, or other users who have been assigned that privilege or role). Let this be TCert<sub>u<sub>i</sub></sub>.
-The exchange of TCerts or Certs among the developer and authorized users is done through an out-of-band channel.
+*链代码部署:* 在部署的时候，u<sub>c</sub>具有被部署交易元数据的完全控制权，可硬存储一个ACL的列表（每个函数一个），或一个应用所需要的角色的列表。存储在ACL中的格式取决于部署的交易，链代码需要在执行时解析元数据。
+为了定义每个列表/角色，u<sub>c</sub>可以使用u<sub>i</sub>的任意TCerts/Certs（或，如果可接受，其他分配了权限或角色的用户）。把它记作TCert<sub>u<sub>i</sub></sub>。
+开发者和授权用户之间的TCerts和 Certs交换实在频外渠道进行的。
 
-Assume that the application of u<sub>c</sub>'s requires that to invoke the *hello* function, a certain message *M* has to be authenticated by an authorized invoker (u<sub>i</sub>, in our example).
-One can distinguish the following two cases:
+假设应用的u<sub>c</sub>需要调用 *hello*函数，某个消息*M*就被授权给授权的调用者（在我们的例子中是u<sub>i</sub>）。
+可以区分为以下两种情况：
 
-1. *M* is one of the chaincode's function arguments;
+1. *M*是链代码的其中一个函数参数;
 
-2. *M* is the invocation message itself, i.e., function-name, function-arguments.
+2. *M*是调用信息本事，如函数名，函数参数。
 
-*Chaincode invocation:*
-To invoke C, u<sub>i</sub>'s application needs to sign *M* using the TCert/ECert, that was used to identify u<sub>i</sub>'s participation in the chain-code at the associated
-deployment transaction's metadata, i.e., TCert<sub>u<sub>i</sub></sub>. More specifically, u<sub>i</sub>'s client application does the following:
+*链代码调用:*
+为了调用C， u<sub>i</sub>的应用需要使用TCert/ECert对*M*签名，用来识别u<sub>i</sub>在相关的部署交易的元数据中的参与身份。即，TCert<sub>u<sub>i</sub></sub>。更具体的，u<sub>i</sub>的客户端应用做一下步骤：
 
-1. Retrieves a CertificateHandler for Cert<sub>u<sub>i</sub></sub>, *cHandler*;
+1. Cert<sub>u<sub>i</sub></sub>, *cHandler*获取CertificateHandler
 
-2. obtains a new TransactionHandler to issue the execute transaction, *txHandler* relative to his next available TCert or his ECert;
+2. 获取新的TransactionHandler来执行交易, *txHandler*相对与他的下一个有效的TCert或他的ECert
 
-3. gets *txHandler*'s *binding* by invoking *txHandler.getBinding()*;
+3. 通过调用*txHandler.getBinding()*来得到*txHandler*的绑定
 
-4. signs *'*M* || txBinding'* by invoking *cHandler.Sign('*M* || txBinding')*, let *sigma* be the output of the signing function;
+4. 通过调用*cHandler.Sign('*M* || txBinding')*来对*'*M* || txBinding'*签名, *sigma*是签名函数的输出。
 
-5. issues a new execute transaction by invoking, *txHandler.NewChaincodeExecute(...)*. Now, *sigma* can be included in the transaction as one of the arguments that are passed to the function (case 1) or as part of the code-metadata section of the payload(case 2).
+5. 通过调用来发布一个新的执行交易，*txHandler.NewChaincodeExecute(...)*. 现在, *sigma*可以以一个传递给函数（情形1）参数或payload的元数据段的一部分(情形2)的身份包含在交易中。
 
-*Chaincode processing:*
-The validators, who receive the execute transaction issued u<sub>i</sub>, will provide to *hello* the following information:
+*链代码处理:*
+验证器, 从u<sub>i</sub>处接受到的执行交易将提供以下信息：
 
-1. The *binding* of the execute transaction, that can be independently computed at the validator side;
+1. 执行交易的*绑定*，他可以在验证端独立的执行；
 
-2. The *metadata* of the execute transaction (code-metadata section of the transaction);
+2. 执行交易的*元数据*(交易中的代码元数据);
 
-3. The *metadata* of the deploy transaction (code-metadata component of the corresponding deployment transaction).
+3. 部署交易的*元数据*(对应部署交易的代码元数据组建).
 
-Notice that *sigma* is either part of the arguments of the invoked function, or stored inside the code-metadata of the invocation transaction (properly formatted by the client-application).
-Application ACLs are included in the code-metadata section, that is also passed to the chain-code at execution time.
-Function *hello* is responsible for checking that *sigma* is indeed a valid signature issued by TCert<sub>u<sub>i</sub></sub>, on '*M* || *txBinding'*.
+注意*sigma*是被调用函数参数的一部分，或者是存储在调用交易的代码元数据内部的（被客户端应用合理的格式化）。
+应用ACL包含在代码元数据段中，在执行时同样被传递给链代码。    
+函数*hello*负责检查*sigma*的确是通过TCert<sub>u<sub>i</sub></sub>在'*M* || *txBinding'*上的有效签名。
 
-#### 4.4.2 Read access control
-This section describes how the fabric's infrastructure offers support to the application to
-enforce its own read-access control policies at the level of users. As in the case of invocation access
-control, the first part describes the infrastructure features that can be leveraged by the application for this
-purpose, and the last part details on the way applications should use these tools.
+#### 4.4.2 读访问控制    
+这节描述fabric基础设施如何支持应用在用户层面执行它自己的读访问控制策略。和调用访问控制的情况一样，第一部分描述了可以被应用程序为实现此目的利用的基础设施的功能，接下来介绍应用使用这些工具的方法。
 
-For the purpose of this discussion, we leverage a similar example as before, i.e.,
+为了说明这个问题，我们使用和指点一样的例子，即：
 
-1. **C**: is a chaincode that contains a single function, e.g., called *hello*;
+1. **C**: 是只包含一个函数的链代码，如，被成为*hello*
 
-2. **u<sub>A</sub>**: is the **C**'s deployer, also known as application;
+2. **u<sub>A</sub>**: 是**C**的部署者，也被成为应用;
 
-3. **u<sub>r</sub>**: is a user who is authorized to read **C**'s functions. User u<sub>A</sub> wants to ensure that only u<sub>r</sub> can read the function *hello*.
+3. **u<sub>r</sub>**: 是被授权调用**C**的用户。用户u<sub>A</sub>希望只有u<sub>r</sub>可以读取函数*hello*
 
-**Support from the infrastructure.**
-For **u<sub>A</sub>** to be able to implement its own read access control at the application layer securely, our infrastructure is required to
-support the transaction format for code deployment and invocation, as depicted in the two figures below.
+**来自基础设施的支持.**
+为了让**u<sub>A</sub>**在应用层安全的实现自己的读取访问控制我们的基础设施需要像下面描述的那样来支持代码的部署和调用交易格式。
 
 ![SecRelease-RACappDepl title="Deployment transaction format supporting application-level read access control."](./images/sec-usrconf-deploy-interm.png)
 
 ![SecRelease-RACappInv title="Invocation transaction format supporting application-level read access control."](./images/sec-usrconf-invoke-interm.png)
 
-More specifically fabric layer is required to provide the following functionality:
+更具体的fabric层需要提供下面这些功能：
 
-1. Provide minimal encryption capability such that data is only decryptable by a validator's (infrastructure) side; this means that the infrastructure should move closer to our future version, where an asymmetric encryption scheme is used for encrypting transactions. More specifically, an asymmetric key-pair is used for the chain, denoted by K<sub>chain</sub> in the Figures above, but detailed in Section <a href="./txconf.md">Transaction Confidentiality</a>.
+1. 为数据只能通过验证（基础设施）侧解密，提供最低限度的加密功能；这意味着基础设施在我们的未来版本中应该更倾向于使用非对称加密方案来加密交易。更具体的，在链中使用在上图中标记为 K<sub>chain</sub> 的非对称密钥对。具体参看<a href="./txconf.md">交易保密</a>小节
 
-2. The client-application can request the infrastructure sitting on the client-side to encrypt/decrypt information using a specific public encryption key, or that client's long-term decryption key.
+2. 客户端-引用可以请求基础设施，基于客户端侧使用特定的公共加密密钥或客户端的长期解密密钥来加密/解密信息。
 
-3. The transaction format offers the ability to the application to store additional transaction metadata, that can be passed to the client-application after the latter's request. Transaction metadata, as opposed to code-metadata, is not encrypted or provided to the chain-code at execution time. Validators treat these metadata as a list of bytes they are not responsible for checking validity of.
+3. 交易格式提供应用存储额外的交易元数据的能力，这些元数据可以在后者请求后传递给客户端应用。交易元数据相对于代码元数据，在执行时是没有加密或传递给链代码的。因为验证器是不负责检查他们的有效性的，所以把它们当作字节列表。
 
-**Application read-access control.**
-For this reason the application may request and obtain access to the public encryption key of the user **u<sub>r</sub>**; let that be **PK<sub>u<sub>r</sub></sub>**. Optionally,
-**u<sub>r</sub>** may be providing **u<sub>A</sub>** with a certificate of its, that would be leveraged by the application, say, TCert<sub>u<sub>r</sub></sub>; given the latter,
-the application would, e.g., be able to trace that user's transactions w.r.t. the application's chain-codes. TCert<sub>u<sub>r</sub></sub>, and PK<sub>u<sub>r</sub></sub>, are
-exchanged in an out-of-band channel.
+**应用读访问控制.**
+应用可以请求并获取访问用户**u<sub>r</sub>**的公共加密密钥，我们把它标记为**PK<sub>u<sub>r</sub></sub>**。可选的，**u<sub>r</sub>** 可能提供 **u<sub>A</sub>**的一张证书给应用，使应用可以利用，标记为TCert<sub>u<sub>r</sub></sub>。如：为了跟踪用户关于应用的链代码的交易。TCert<sub>u<sub>r</sub></sub>和PK<sub>u<sub>r</sub></sub>实在频外渠道交换的。
 
-At deployment time, application **u<sub>A</sub>** performs the following steps:
+部署时，应用 **u<sub>A</sub>**执行下面步骤：
 
-1. Uses the underlying infrastructure to encrypt the information of **C**, the application would like to make accessible to **u<sub>r</sub>**, using PK<sub>u<sub>r</sub></sub>.
-   Let C<sub>u<sub>r</sub></sub> be the resulting ciphertext.
+1. 使用底层基础设施来加密**C**的信息，应用使用PK<sub>u<sub>r</sub></sub>来访问**u<sub>r</sub>**。标记C<sub>u<sub>r</sub></sub>为得到的密文。
 
-2. (optional) C<sub>u<sub>r</sub></sub> can be concatenated with TCert<sub>u<sub>r</sub></sub>
+2. (可选) C<sub>u<sub>r</sub></sub>可以和TCert<sub>u<sub>r</sub></sub>连接
 
-3. Passes the overall string as ''Tx-metadata'' of the confidential transaction to be constructed.
+3. 保密交易被构造为''Tx-metadata''来传递
 
-At invocation time, the client-application on u<sub>r</sub>'s node, would be able, by obtaining the deployment transaction to retrieve the content of **C**.
-It just needs to retrieve the **tx-metadata** field of the associated deployment transaction, and trigger the decryption functionality offered by our Blockchain
-infrastrucure's client, for C<sub>u<sub>r</sub></sub>. Notice that it is the application's responsibility to encrypt the correct **C** for u<sub>r</sub>.
-Also, the use of **tx-metadata** field can be generalized to accommodate application-needs. E.g., it can be that invokers leverage the same field of invocation transactions
-to pass information to the developer of the application, etc.
+在调用的时候，在 u<sub>r</sub>节点上的客户端-应用可以获取部署交易来得到**C**的内容。    
+这只需要得到相关联的部署交易的 **tx-metadata**域，并触发区块链基础设施客户端为C<sub>u<sub>r</sub></sub>提供的解密函数。注意，为u<sub>r</sub>正确加密**C**是应用的责任。    
+此外，使用**tx-metadata**域可以一般性的满足应用需求。即，调用者可以利用调用交易的同一域来传递信息给应用的开发者。
 
-<font color="red">**Important Note:** </font> It is essential to note that validators **do not provide** any decryption oracle to the chain-code
-throughout its execution. Its infrastructure is though responsible for decrypting the payload of the chain-code itself (as well as
-the code-metadata fields near it), and provide those to containers for deployment/execution.
+<font color="red">**Important Note:** </font> 
+要注意的是验证器在整个执行链代码过程中**不提供**任何解密预测。
+对payload解密由基础设施自己负责（以及它附近的代码元数据域）。并提供他们给部署/执行的容器。
 
 ### 4.5 Online wallet service
 
