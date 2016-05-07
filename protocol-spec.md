@@ -2032,32 +2032,32 @@ iTx)保存计数器crt<sub>state</sub>初始设置为0。然后，每次必须�
 * *代码信息*部分: 包含在链代码的源代码的信息。本质上是链码标识符/名称和源代码的部署交易，而对调用链代码是是被调用函数名称和它的参数。就像在两张图中展示的代码信息那样他们最终是使用链指定的对称密钥K<sub>chain</sub>加密的。
 
 ## 5. 拜占庭共识    
-The ``obcpbft`` package is an implementation of the seminal [PBFT](http://dl.acm.org/citation.cfm?id=571640 "PBFT") consensus protocol [1], which provides consensus among validators despite a threshold of validators acting as _Byzantine_, i.e., being malicious or failing in an unpredictable manner. In the default configuration, PBFT tolerates up to t<n/3 Byzantine validators.
+``obcpbft``包是[PBFT](http://dl.acm.org/citation.cfm?id=571640 "PBFT")共识协议[1]的实现，其中提供了验证器之间的共识，虽然验证器的阈作为_Byzantine_，即，恶意的或不可预测的方式失败。在默认的配置中，PBFT容忍t<n/3的拜占庭验证器。
 
-Besides providing a reference implementation of the PBFT consensus protocol, ``obcpbft`` plugin contains also implementation of the novel _Sieve_ consensus protocol. Basically the idea behind Sieve is to provide a fabric-level protection from _non-deterministic_ transactions, which PBFT and similar existing protocols do not offer. ``obcpbft`` is easily configured to use either the classic PBFT or Sieve.  
+处理提供PBFT共识协议的参考实现，``obcpbft`` 插件还包含了新颖的_Sieve_共识协议的实现。基本上Sieve背后的思想为_non-deterministic_交易提供了fabric层次的保护，这是PBFT和相似的协议没有提供的，``obcpbft``可以很容易配置为使用经典的PBFT或Sieve。
 
-In the default configuration, both PBFT and Sieve are designed to run on at least *3t+1* validators (replicas), tolerating up to *t* potentially faulty (including malicious, or *Byzantine*) replicas.
+在默认配置中，PBFT和Sieve设计运行在至少*3t +1 *验证器（副本），最多容忍*T*个出现故障（包括恶意或*拜占庭*）副本。
 
-### 5.1 Overview
-The `obcpbft` plugin provides a modular implementation of the `CPI` interface which can be configured to run PBFT or Sieve consensus protocol. The modularity comes from the fact that, internally, `obcpbft` defines the `innerCPI`  interface (i.e., the _inner consensus programming interface_), that currently resides in `pbft-core.go`.
+### 5.1 概览   
+`obcpbft`插件提供实现了`CPI`接口的模块，他可以配置运行PBFT还是Sieve共识协议。模块化来自于，在内部，`obcpbft`定义了`innerCPI` 接口（即， _inner consensus programming interface_），现在包含在 `pbft-core.go`中。
 
-The `innerCPI` interface defines all
-interactions between the inner PBFT consensus (called here *core PBFT* and implemented in `pbft-core.go`) and the outer consensus that uses the core PBFT.  This outer consensus is called *consumer* within core PBFT. `obcpbft` package contains implementations of several core PBFT consumers:
+该`innerCPI`接口定义的所有PBFT内部共识（这里称为*core PBFT*并在`pbft-core.go`实现）和使用core PBFT的外部共识之间的相互作用。`obcpbft`包包含几个core PBFT消费者实现
 
-  - `obc-classic.go`, a shim around core PBFT that implements the `innerCPI` interface and calls into the `CPI` interface;
-  - `obc-batch.go`, an `obc-classic` variant that adds batching capabilities to PBFT; and  
-  - `obc-sieve.go`, a core PBFT consumer that implements Sieve consensus protocol and `innerCPI` interface, calling into the `CPI interface`.
+  - `obc-classic.go`,  core PBFT周围的shim，实现了`innerCPI`接口并调用`CPI`接口;
+  - `obc-batch.go`, `obc-classic`的变种，为PBFT添加批量能力；
+  - `obc-sieve.go`, core PBFT消费者，实现Sieve共识协议和`innerCPI`接口, 调用`CPI interface`.
 
-In short, besides calls to send messages to other peers (`innerCPI.broadcast` and `innerCPI.unicast`), the `innerCPI` interface defines indications that the core consensus protocol (core PBFT) exports to the consumer. These indications are modeled after a classical *total order (atomic) broadcast* API [2], with `innerCPI.execute` call being used to signal the atomic delivery of a message. Classical total order broadcast is augmented with *external validity* checks [2] (`innerCPI.verify`) and a functionality similar to the unreliable eventual leader failure detector &Omega; [3] (`innerCPI.viewChange`).
+总之，除了调用发送消息给其他peer(`innerCPI.broadcast` 和 `innerCPI.unicast`)，`innerCPI`接口定义了给消费者暴露的共识协议。
+这使用了用来表示信息的原子投递的`innerCPI.execute`调用的一个经典的*总序（原子）广播* API[2]。经典的总序广播在*external validity* checks [2]中详细讨论(`innerCPI.verify`)和一个功能相似的对不可靠的领导失败的检查&Omega; [3] (`innerCPI.viewChange`).
 
-Besides `innerCPI`, core PBFT is defined by a set of calls into core PBFT. The most important call into core PBFT is `request` which is effectively used to invoke a total order broadcast primitive [2]. In the following, we first overview calls into core PBFT and then detail the ``innerCPI`` interface. Then, we briefly describe Sieve consensus protocol which will be specified and described in more details elsewhere.  
+除了`innerCPI`, core PBFT 定义了core PBFT的方法。core PBFT最重要的方法是`request`有效地调用总序广播原语[2]。在下文中，我们首先概述core PBFT的方法和``innerCPI``接口的明细。然后，我们简要地描述，这将在更多的细节Sieve共识协议。
 
-### 5.2 Core PBFT Functions
-The following functions control for parallelism using a non-recursive lock and can therefore be invoked from multiple threads in parallel. However, the functions typically run to completion and may invoke functions from the CPI passed in.  Care must be taken to prevent livelocks.
+### 5.2 Core PBFT函数
+下面的函数使用非递归锁来控制并发，因此可以从多个并行线程调用。然而，函数一般运行到完成，可能调用从CPI传入的函数。必须小心，以防止活锁。
 
 #### 5.2.1 newPbftCore
 
-Signature:
+签名:
 
 ```
 func newPbftCore(id uint64, config *viper.Viper, consumer innerCPI, ledger consensus.Ledger) *pbftCore
