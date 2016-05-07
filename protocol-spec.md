@@ -2063,7 +2063,7 @@ iTx)保存计数器crt<sub>state</sub>初始设置为0。然后，每次必须�
 func newPbftCore(id uint64, config *viper.Viper, consumer innerCPI, ledger consensus.Ledger) *pbftCore
 ```
 
-The `newPbftCore` constructor instantiates a new PBFT box instance, with the specified `id`.  The `config` argument defines operating parameters of the PBFT network: number replicas *N*, checkpoint period *K*, and the timeouts for request completion and view change duration.
+newPbftCore构造器使用指定的`id`来实例化一个新的PBFT箱子实例。`config`参数定义了PBFT网络的操作参数：副本数量*N*，检查点周期*K*，请求完成的超时时间，视图改变周期。
 
 | configuration key            | type       | example value | description                                                    |
 |------------------------------|------------|---------------|----------------------------------------------------------------|
@@ -2072,54 +2072,52 @@ The `newPbftCore` constructor instantiates a new PBFT box instance, with the spe
 | `general.timeout.request`    | *duration* | 2s            | Max delay between request reception and execution              |
 | `general.timeout.viewchange` | *duration* | 2s            | Max delay between view-change start and next request execution |
 
-The arguments `consumer` and `ledger` pass in interfaces that are used
-to query the application state and invoke application requests once
-they have been totally ordered.  See the respective sections below for
-these interfaces.
+接口中传递的`consumer`和`ledger`参数是一旦它们全部排好序后用来查询应用状态和调用应用请求的。参阅下面这些接口的相应部分。
 
 
-#### 5.2.2 request
+#### 5.2.2 请求
 
-Signature:
+签名:
 
 ```
 func (pbft *pbftCore) request(msgPayload []byte) error
 ```
 
-The `request` method takes an opaque request payload and introduces this request into the total order consensus.  This payload will be passed to the CPI `execute` function on all correct, up-to-date replicas once PBFT processing is complete.  The `request` method does not wait for execution before returning; `request` merely submits the request into the consensus.
+`request`方法采用不透明的请求payload并把这个请求引入全序共识。一旦PBFT处理完成，这个payload将被传递给CPI`execute`函数在所有正确的，最新的副本。`request`方法不会在反悔前等待执行；`request`仅仅向共识提交请求。
 
-PBFT does not support submission of the same request multiple times, i.e. a nonce is required if the same conceptual request has to be executed multiple times.  However, PBFT does not reliably prevent replay of requests; a nonce or sequence number can be used by the application to prevent against replays by a Byzantine client.
+PBFT不支持提交相同的请求多次的，即，如果概念上相同的请求必须被执行多次，那么就需要nonce。然而，PBFT不能可靠地防止请求重放；由应用程序使用nonce或序列号来防止拜占庭客户端的重放。
 
 In rare cases, a `request` may be dropped by the network, and it will never `execute`; if the consumer cannot tolerate this, the consumer needs to implement retries itself.
+在极少数情况下，`request`可能被网络丢弃，它永远不会`execute`；如果消费者不能忍受这一点，消费者本身需要实现重试。
 
-#### 5.2.3 receive
+#### 5.2.3 接收
 
-Signature:
+签名:
 
 ```
 func (pbft *pbftCore) receive(msgPayload []byte) error
 ```
 
-The `receive` method takes an opaque message payload, which another instance passed to the `broadcast` or `unicast` CPI functions.  All communication is expected to ensure integrity and provide authentication; e.g. by the use of TLS.  Note that currently authentication is not yet used.  Once authentication is provided, the function signature of `receive` should include the id of the sending node.
+`receive`方法采用不透明的信息payload，由另一个实例传递给`broadcast`或`unicast`CPI函数。 所有通信都希望，以确保完整性和提供认证; 例如通过使用TLS。注意，目前尚未使用的认证。一旦提供身份验证，`receive`的函数签名应包括发送节点的ID。
 
-See also the discussion below regarding `innerCPI.broadcast` and `innerCPI.unicast`.
+参见下面讨论的`innerCPI.broadcast` 和 `innerCPI.unicast`.
 
 
-#### 5.2.4 close
+#### 5.2.4 关闭
 
-Signature:
+签名:
 
 ```
 func (pbft *pbftCore) close()
 ```
 
-The `close` method terminates all background operations. This interface is mostly exposed for testing, because during operation of the fabric, there is never a need to terminate the PBFT instance.
+`close`方法终止所有后台操作。因为在fabric的操作过程中，永远不需要终止PBFT实例，这个接口的暴露主要是为了测试。
 
 ### 5.3 Inner Consensus Programming Interface
 
-The consumer application provides the inner consensus programming interface to core PBFT.  PBFT will call these functions to query state and signal events.
+消费者应用程序为core PBFT提供一致内部编程接口。 PBFT将调用这些函数来查询状态和信号事件。
 
-Definition:
+定义:
 
 ```
 type innerCPI interface {
@@ -2131,94 +2129,95 @@ type innerCPI interface {
 }
 ```
 
-#### 5.3.1 broadcast
+#### 5.3.1 广播
 
-Signature:
+签名:
 
 ```
 func (cpi innerCPI) broadcast(msgPayload []byte)
 ```
 
-The `broadcast` function takes an opaque payload and delivers it to all other replicas via their `receive` method.  Messages may be lost or reordered.  See also the section on `receive` call coming into core PBFT.
+`broadcast`函数采用不透明的payload，并通过`receive` 方法投递它到所有其它副本。消息可能会丢失或重排。另请参阅`receive`调用core PBFT部分。
 
-#### 5.3.2 unicast
+#### 5.3.2 单播
 
-Signature:
+签名:
 
 ```
 func (cpi innerCPI) unicast(msgPayload []byte, receiverID uint64) (err error)
 ```
 
-The `unicast` function is similar to `broadcast`, but takes a destination replica id.
+`unicast`函数和`broadcast`相似，但采用目的副本id。
 
-#### 5.3.3 validate
+#### 5.3.3 验证
 
-Signature:
+签名:
 
 ```
 func (cpi innerCPI) validate(txRaw []byte) error
 ```
-The `validate` function is invoked whenever PBFT receives a new request, either locally via `request`, or via consensus messages.  The argument of `validate` is the opaque request that was provided to the PBFT `request` method.  If `validate` returns a non-`nil` error, the local replica will discard the request and behave as if it had never received the request.
+`validate`在PBFT接受到新请求是调用，不管是本地的通过`request`或共识消息。`validate`的参数是不透明的请求，由PBFT的`request`方法提供。如果`validate`放回non-`nil`错误，本地的副本会丢弃请求，并当作从来没有收到过请求。
 
-The `validate` function can be used for syntactic validation of application requests (i.e., *external validity* checks [2]).  Care must be taken not to introduce non-determinism when validating requests; i.e. the validation must not use any state, e.g., if different replicas receive `validate` calls in different sequence, also with respect to `execute`.  If non-determinism occurs during validation, the behavior of different replicas may diverge, which may lead to dropped requests or complete malfunction of the consensus.
+`validate`函数可以用来验证应用请求的语法（如，*external validity*检查[2]）。必须注意不要引入验证请求时的不确定性；如验证不能使用任何状态，如，如果不同的副本以不同的序列收到`validate`调用，还涉及到`execute`。如果在验证时发生不确定性，不同的副本的行为可能发散，这可能导致丢弃请求或共识完全故障。
 
-#### 5.3.4 execute
 
-Signature:
+#### 5.3.4 执行
+
+签名:
 
 ```
 func (cpi innerCPI) execute(txRaw []byte, opts ...interface{})
 ```
+请求由一致性协议被成功完全排序后，PBFT将调用`execute`函数。 传递给`execute`的参数是不透明的请求，如先前已传递给`request`。 正确的，最新的副本将接收到相同序列的`execute`调用。 处理请求时，应用程序必须是确定性的。 任何不确定性将导致对副本发散状态，这被认为是一个错综复杂的行为。 
 
-PBFT will invoke the `execute` function when a request has been successfully totally ordered by the consensus protocol.  The argument passed to `execute` is the opaque request, as it has been previously passed to `request`.  All correct, up-to-date replicas will receive the same sequence of `execute` calls.  The application must be deterministic when processing the request.  Any non-determinism will lead to the state on replicas diverging, which is considered a byzantine behavior.
-
-See also the discussion above on request replays in the `request` section.
+另见上面的`request`部分的要求重播的讨论。
 
 #### 5.3.5 viewChange
 
-Signature:
+签名:
 
 ```
 func (cpi innerCPI) viewChange(curView uint64)
 ```
+该`viewChange`功能被称为PBFT信号到一个新的视图成功转型（一个新的）。这些信息，现在只有*Sieve*共识算法感兴趣，它采用PBFT领导人选举，以避免自己实现。
 
-The `viewChange` function is called by PBFT to signal a successful transition to a new view (and with it, a new primary).  This information is right now only of interest to the *Sieve* consensus algorithm, which uses PBFT leader election to avoid having to implement its own.
+假设副本的数量固定，它是简单的使用模算术把curView uint64映射到副本标识。考虑到这一点，core PBFT实现，假设最终同步[4]，它是直截了当地认为，'viewChange`调用功能允许简单实现*最终领导*不可靠的故障检测 &Omega; [3]。
 
-Assuming a fixed number of replicas, it is simple to map curView uint64 to replica ID using modulo arithmetic. Having this in mind, with core PBFT implementation, assuming eventual synchrony [4], it is straightforward to argue that the functionality of the `viewChange` call allows simple implementation of the *eventual leader* unreliable failure detector &Omega; [3].  
+### 5.4 Sieve共识协议
 
-### 5.4 Sieve Consensus protocol
+Sieve的设计主要是向PBFT共识协议增加两个主要的设计目标：
 
-The design goal of Sieve is to augment PBFT consensus protocol with two main design goals:
+- 启用*副本输出状态的共识*, 除了对PBFT提供的输入状态的共识。为了实现这一目标，Sieve采用了Execute-Verify (Eve)模式[5]
 
-- Enabling *consensus on the output state of replicas*, in addition to the consensus on the input state provided by PBFT. To achieve this, Sieve adopts the Execute-Verify (Eve) pattern introduced in [5].
+- 由于fabric允许执行任意的链代码，这样的链代码可能会引入*不确定*交易。虽然不确定的交易，原则上是不允许的，通过，例如，链代码的仔细检查，使用领域特定语言（DSL），或者以其他方式强制执行确定，Sieve的设计目标是提供一个单独的*共识 fabric-层*可与上述方法结合使用来针对*不确定性*交易。
 
-- Because the fabric allows execution of arbitrary chaincode, such chaincode may introduce *non-deterministic* transactions. Although non-deterministic transaction should in principle be disallowed by, e.g., careful inspection of chaincode, using domain specific languages (DSLs), or by otherwise enforcing determinism, the design goal of Sieve is to provide a separate *consensus fabric-level* protection against *non-deterministic* transactions that can be used in combination with the above mentioned approaches.
+    为此，Sieve检测并*筛出不确定性交易（即表现为这样）。因此，Sieve不要求所有输入交易的共识（即重复状态机）是确定性的。Sieve的这一特点是新的，没有被任何现有的拜占庭容错共识协议来实现。
 
-	To this end, Sieve detects and *sieves out non-deterministic transactions* (that manifest themselves as such). Hence, Sieve does not require all input transactions to consensus (i.e., the replicated state machine) to be deterministic. This feature of Sieve is new and has not been implemented by any existing Byzantine fault tolerant consensus protocols.
+协议实现上述两个目标不应该被设计并从头开始的，应该重用现有PBFT实现，这降低了代码的复杂性，并简化有关达成新的共识协议的推理。为此，来自[6]的灵感，Sieve采用模块化方法设计的，重用`obcpbft`的core PBFT组件。
 
-A protocol achieving the above two goals should not be designed and implemented from scratch, and should reuse existing PBFT implementation, lowering code complexity and simplifying reasoning about a new consensus protocol. To this end, inspired by [6], Sieve is designed using a modular approach, reusing the core PBFT component of `obcpbft`.
+虽然Sieve的细节将在其他地方[7]出现，我们简单介绍一下下面的一些设计和实现方面的问题。
 
-Although the details of Sieve will appear elsewhere [7], we briefly outline some design and implementation aspects below.
+简而言之，Sieve需要副本，以确定在执行请求的输出上的共识。如果请求是在第一时间确定的，正确的副本将获得相同的输出，他们可以在这个非常认同的结果。然而，如果请求在正确的副本上产生了发散输出，Sieve可以检测这个发散状态，副本将同意丢弃请求的结果，从而保持确定性。
 
-In a nutshell, Sieve requires replicas to deterministically agree on the output of the execution of a request.  If the request was deterministic in the first place, all correct replicas will have obtained the same output, and they can agree on this very result. However, if a request happens to produce divergent outputs at correct replicas, Sieve may  detect this divergent condition, and the replicas will agree to discard the result of the request, thereby retaining determinism.
-
-Notice that, as discussed further below, Sieve allows false negatives, i.e., execution of *non-deterministic* requests that execute with the same result at a sufficient number of replicas. However, Sieve allows no false positives and any discarded request is certainly non-deterministic.
-
-The Sieve protocol uses core PBFT to agree on whether to accept or discard a request.  Execution of requests to Sieve is coordinated by a *leader*, which maps to the current PBFT primary (leveraging `innerCPI.viewchange` notification from core PBFT) .  Upon a new request, the leader will instruct all replicas to tentatively execute the request.  Every replica then reports the tentative result (i.e. application state) back to the leader.  The leader collects these *verify* reports in a *verify-set*, which unambiguously determines whether the request should be accepted or discarded.  This verify-set is then passed through the total order of core PBFT.
-
-When core PBFT executes this verify-set, all correct replicas will act in the same way.  If the verify-set proves that execution diverged between correct replicas, the request is considered non-deterministic, and the replicas will roll back the tentative execution and restore the original application state.  If all correct replicas obtained the same result for the tentative execution, the replicas accept the execution and commit the tentative application state.
-
-Under adverse conditions, a request that diverged between correct replicas may appear like a deterministic request (we speak of *false negative* in Sieve detection of non-determinstic requests).  Nevertheless, Sieve requires at least one correct replica to obtain a certain outcome state in order for that state to be committed. Correct replicas that possibly observe diverging execution will discard their result and synchronize their state to match the agreed-upon execution.
+注意，如下面进一步讨论的，Sieve允许漏报，即，在足够数量的副本执行*不确定性*请求产生相同的执行结果。然而，Sieve允许没有误报和要求丢弃的肯定是不确定性。
 
 
-## 6. Application Programming Interface
+Sieve协议使用core PBFT来同意接受或丢弃请求。请求Sieve的执行是由*领导*，映射到当前主PBFT（利用从core PBFT `innerCPI.viewchange`通知）来协调的。当一个新的请求，该领导指示所有副本尝试执行请求。然后每个副本报告初步结果（即应用的状态）给领导者。领导者收集这些在*校验集*中的*验证*报告，它毫不含糊地确定该请求是否应该接受或放弃。此校验集，然后通过core PBFT的全序。
 
-The primary interface to the fabric is a REST API. The REST API allows applications to register users, query the blockchain, and to issue transactions. A CLI is also provided to cover a subset of the available APIs for development purposes. The CLI enables developers to quickly test chaincodes or query for status of transactions.
+当core PBFT执行此验证集，所有正确的副本都会以同样的方式执行。如果验证集证明正确的副本之间存在分歧，请求被视为非确定性，并且副本将回滚，并恢复原始应用程序的状态。如果所有的正确副本中获得的相同的结果，副本接受执行和提交的尝试执行状态。
 
-Applications interact with a non-validating peer node through the REST API, which will require some form of authentication to ensure the entity has proper privileges. The application is responsible for implementing the appropriate authentication mechanism and the peer node will subsequently sign the outgoing messages with the client identity.
+在不利的条件下，正确的副本之间分歧的请求可能会出现像确定的要求（Sieve检测不确定请求发言的*漏报*）。然而，Seeve至少需要一个正确副本，以获得特定结果的状态来提交。正确的副本可能观察到分歧执行，将放弃他们的结果，并同步他们的状态，以配合商定执行。
+
+
+## 6. 应用编程接口
+fabric的主要接口是REST API。 REST API允许应用注册用户，查询区块链，并发布交易。 CLI为了开发，同样提供有效API的子集。CLI允许开发人员能够快速测试链代码或查询交易状态。
+
+应用程序通过REST API与非验证的peer节点，这将需要某种形式的认证，以确保实体有适当的权限进行交互。该应用程序是负责实现合适的身份验证机制和peer节点随后将使用客户身份对发出消息签名。
 
 ![Reference architecture](images/refarch-api.png) <p>
-The fabric API design covers the categories below, though the implementation is incomplete for some of them in the current release. The [REST API](#62-rest-api) section will describe the APIs currently supported.
+
+fabric API 设计涵盖的类别如下，虽然当前版本的其中一些实现不完整。[REST API（＃62-REST的API）节将说明API当前支持。
+
 
 *  Identity - Enrollment to acquire or to revoke a certificate
 *  Address - Target and source of a transaction
@@ -2911,3 +2910,4 @@ For example, a Bluemix PaaS application using Node.js might have a Web front-end
 
 下面这些评审人评审了这份文档： Frank Lu, John Wolpert, Bishop Brock, Nitin Gaur, Sharon Weed.
 *(c)* 每个K对TCA和授权的审计员可用。对于批量中的所有TCert，TCert特有的K可以和TCert一起分发给TCert的所有者（通过TLS）。这样就通过K的TCert所有者启用目标释放（TCert所有者的注册ID的可信通知）。这样的目标释放可以使用预定收件人的密钥协商公钥和/或PK<sub>chain</sub>其中SK<sub>chain</sub>就像规范对于
+fabric API design covers the categories below, though the implementation is incomplete for some of them in the current release. The [REST API](#62-rest-api) section will describe the APIs currently supported.
