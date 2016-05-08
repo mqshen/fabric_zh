@@ -2219,29 +2219,30 @@ fabric的主要接口是REST API。 REST API允许应用注册用户，查询区
 fabric API 设计涵盖的类别如下，虽然当前版本的其中一些实现不完整。[REST API（＃62-REST的API）节将说明API当前支持。
 
 
-*  Identity - Enrollment to acquire or to revoke a certificate
-*  Address - Target and source of a transaction
-*  Transaction - Unit of execution on the ledger
-*  Chaincode - Program running on the ledger
-*  Blockchain - Contents of the ledger
-*  Network - Information about the blockchain peer network
-*  Storage - External store for files or documents
-*  Event Stream - Sub/pub events on the blockchain
+*  身份 - 注册来获得或吊销一张证书
+*  Address - 交易的源或目的
+*  Transaction - 总账上的执行单元
+*  Chaincode - 总账上运行的程序
+*  Blockchain - 总账的内容
+*  Network - 区块链peer网络的信息
+*  Storage - 文件或文档的外部存储
+*  Event Stream - 区块链上订阅/发布事件
 
 ## 6.1 REST Service
-The REST service can be enabled (via configuration) on either validating or non-validating peers, but it is recommended to only enable the REST service on non-validating peers on production networks.
+REST服务可以（通过配置）在验证和非验证peer被启用，但是建议在生产环境中只启用非验证peer的REST服务。
 
 ```
 func StartOpenchainRESTServer(server *oc.ServerOpenchain, devops *oc.Devops)
 ```
 
-This function reads the `rest.address` value in the `core.yaml` configuration file, which is the configuration file for the `peer` process. The value of the `rest.address` key defines the default address and port on which the peer will listen for HTTP REST requests.
+这个函数读取`core.yaml``peer`处理的配置文件中的`rest.address`。`rest.address`键定义了peer的HTTP REST服务默认监听的地址和端口。
 
-It is assumed that the REST service receives requests from applications which have already authenticated the end user.
+假定REST服务接收来已经认证的终端用户的应用请求。
 
 ## 6.2 REST API
 
-You can work with the REST API through any tool of your choice. For example, the curl command line utility or a browser based client such as the Firefox Rest Client or Chrome Postman. You can likewise trigger REST requests directly through [Swagger](http://swagger.io/). To obtain the REST API Swagger description, click [here](https://github.com/hyperledger/fabric/blob/master/core/rest/rest_api.json). The currently available APIs are summarized in the following section.
+您可以通过您所选择的任何工具与REST API的工作。例如，curl命令行实用程序或一个基于浏览器的客户端，如Firefox的REST客户端或Chrome Postman。同样，可以通过[Swagger]（http://swagger.io/）直接触发REST请求。为了获得REST API Swagger描述，点击[这里]（https://github.com/hyperledger/fabric/blob/master/core/rest/rest_api.json）。目前可用的API总结于以下部分。
+
 
 ### 6.2.1 REST Endpoints
 
@@ -2262,18 +2263,18 @@ You can work with the REST API through any tool of your choice. For example, the
 * [Transactions](#6216-transactions-api)
   * GET /transactions/{UUID}
 
-#### 6.2.1.1 Block API
+#### 6.2.1.1 块API
 
 * **GET /chain/blocks/{block-id}**
 
-Use the Block API to retrieve the contents of various blocks from the blockchain. The returned Block message structure is defined in section [3.2.1.1](#3211-block).
+使用块API来从区块链中检索各个块的内容。返回的块信息结构是在[3.2.1.1](#3211-block)节中定义
 
-Block Retrieval Request:
+块检索请求:
 ```
 GET host:port/chain/blocks/173
 ```
 
-Block Retrieval Response:
+块检索响应:
 ```
 {
     "transactions": [
@@ -2301,11 +2302,11 @@ Block Retrieval Response:
 }
 ```
 
-#### 6.2.1.2 Blockchain API
+#### 6.2.1.2 区块链API
 
 * **GET /chain**
 
-Use the Chain API to retrieve the current state of the blockchain. The returned BlockchainInfo message is defined below.
+使用链API来检索区块链的当前状态。返回区块链信息消息被定义如下。
 
 ```
 message BlockchainInfo {
@@ -2315,18 +2316,18 @@ message BlockchainInfo {
 }
 ```
 
-* `height` - Number of blocks in the blockchain, including the genesis block.
+* `height` - 区块链中块的数量，包括创始区块
 
-* `currentBlockHash` - The hash of the current or last block.
+* `currentBlockHash` - 当前或最后区块的哈希
 
-* `previousBlockHash` - The hash of the previous block.
+* `previousBlockHash` - 前一区块的哈希
 
-Blockchain Retrieval Request:
+区块链检索请求:
 ```
 GET host:port/chain
 ```
 
-Blockchain Retrieval Response:
+区块链检索响应:
 ```
 {
     "height": 174,
@@ -2335,15 +2336,17 @@ Blockchain Retrieval Response:
 }
 ```
 
-#### 6.2.1.3 Chaincode API
+#### 6.2.1.3 链代码API
 
 * **POST /chaincode**
 
-Use the Chaincode API to deploy, invoke, and query chaincodes. The deploy request requires the client to supply a `path` parameter, pointing to the directory containing the chaincode in the file system. The response to a deploy request is either a message containing a confirmation of successful chaincode deployment or an error, containing a reason for the failure. It also contains the generated chaincode `name` in the `message` field, which is to be used in subsequent invocation and query transactions to uniquely identify the deployed chaincode.
+使用链代码API来部署，调用和查询链代码
+部署请求需要客户端提供`path`参数，执行文件系统中链代码的目录。部署请求的响应要么是包含成功的链代码部署确认消息要么是包含失败的原因的错误。
+它还含有所生成的链代码的`name`域在消息中，这是在随后的调用和查询交易中使用的已部署链代码的唯一标识。
 
-To deploy a chaincode, supply the required ChaincodeSpec payload, defined in section [3.1.2.2](#3122-transaction-specification).
+要部署链代码，需要提供ChaincodeSpec的payload，在[3.1.2.2](#3122-transaction-specification)节中定义。
 
-Deploy Request:
+部署请求:
 ```
 POST host:port/chaincode
 
@@ -2364,7 +2367,7 @@ POST host:port/chaincode
 }
 ```
 
-Deploy Response:
+部署响应:
 ```
 {
     "jsonrpc": "2.0",
@@ -2376,9 +2379,9 @@ Deploy Response:
 }
 ```
 
-With security enabled, modify the required payload to include the `secureContext` element passing the enrollment ID of a logged in user as follows:
+当启用安全时，修改所需的payload包括传递的登录用户注册ID的`secureContext`元素如下：
 
-Deploy Request with security enabled:
+启用安全的部署请求:
 ```
 POST host:port/chaincode
 
@@ -2400,11 +2403,11 @@ POST host:port/chaincode
 }
 ```
 
-The invoke request requires the client to supply a `name` parameter, which was previously returned in the response from the deploy transaction. The response to an invocation request is either a message containing a confirmation of successful execution or an error, containing a reason for the failure.
+该调用请求要求客户端提供一个`name`参数，这是之前从部署交易响应得到的。调用请求的响应要么是包含成功执行的确认消息，要么是包含失败的原因的错误。
 
-To invoke a function within a chaincode, supply the required ChaincodeSpec payload, defined in section [3.1.2.2](#3122-transaction-specification).
+要调用链代码，需要提供ChaincodeSpec的payload，在[3.1.2.2](#3122-transaction-specification)节中定义
 
-Invoke Request:
+调用请求:
 ```
 POST host:port/chaincode
 
@@ -2425,7 +2428,7 @@ POST host:port/chaincode
 }
 ```
 
-Invoke Response:
+调用响应:
 ```
 {
     "jsonrpc": "2.0",
@@ -2437,9 +2440,10 @@ Invoke Response:
 }
 ```
 
-With security enabled, modify the required payload to include the `secureContext` element passing the enrollment ID of a logged in user as follows:
+当启用安全时，修改所需的payload包括传递的登录用户注册ID的`secureContext`元素如下：
 
-Invoke Request with security enabled:
+
+启用安全的调用请求:
 ```
 {
   "jsonrpc": "2.0",
@@ -2459,11 +2463,11 @@ Invoke Request with security enabled:
 }
 ```
 
-The query request requires the client to supply a `name` parameter, which was previously returned in the response from the deploy transaction. The response to a query request depends on the chaincode implementation. The response will contain a message containing a confirmation of successful execution or an error, containing a reason for the failure. In the case of successful execution, the response will also contain values of requested state variables within the chaincode.
+查询请求需要在客户端提供一个`name`参数，这是之前在部署交易响应中得到了。查询请求的响应取决于链代码的实现。响应要么是包含成功执行的确认消息，要么是包含失败的原因的错误。在成功执行的情况下，响应将包含链代码请求的状态变量的值
 
-To invoke a query function within a chaincode, supply the required ChaincodeSpec payload, defined in section [3.1.2.2](#3122-transaction-specification).
+要查询链代码，需要提供ChaincodeSpec的payload，在[3.1.2.2](#3122-transaction-specification)节中定义。
 
-Query Request:
+查询请求:
 ```
 POST host:port/chaincode/
 
@@ -2484,7 +2488,7 @@ POST host:port/chaincode/
 }
 ```
 
-Query Response:
+查询响应:
 ```
 {
     "jsonrpc": "2.0",
@@ -2496,9 +2500,12 @@ Query Response:
 }
 ```
 
-With security enabled, modify the required payload to include the `secureContext` element passing the enrollment ID of a logged in user as follows:
 
-Query Request with security enabled:
+当启用安全时，修改所需的payload包括传递的登录用户注册ID的`secureContext`元素如下：
+
+
+
+启用安全的查询请求:
 ```
 {
   "jsonrpc": "2.0",
@@ -2518,11 +2525,12 @@ Query Request with security enabled:
 }
 ```
 
-#### 6.2.1.4 Network API
+#### 6.2.1.4 网络API
 
-Use the Network API to retrieve information about the network of peer nodes comprising the blockchain fabric.
+使用网络API来获取组成区块链fabric的peer节点的网络信息
 
-The /network/peers endpoint returns a list of all existing network connections for the target peer node. The list includes both validating and non-validating peers. The list of peers is returned as type `PeersMessage`, containing an array of `PeerEndpoint`, defined in section [3.1.1](#311-discovery-messages).
+/network/peers端点返回的目标peer节点的所有现有的网络连接的列表。该列表包括验证和非验证peer。peer的列表被返回类型`PeersMessage`是包含`PeerEndpoint`的数组，在第[3.1.1]（#311-discovery-messages发现的消息）定义。
+
 
 ```
 message PeersMessage {
@@ -2530,12 +2538,12 @@ message PeersMessage {
 }
 ```
 
-Network Request:
+网络请求:
 ```
 GET host:port/network/peers
 ```
 
-Network Response:
+网络响应:
 ```
 {
     "peers": [
@@ -2567,7 +2575,7 @@ Network Response:
 }
 ```
 
-#### 6.2.1.5 Registrar API (member services)
+#### 6.2.1.5 注册API (会籍服务)
 
 * **POST /registrar**
 * **GET /registrar/{enrollmentID}**
@@ -2575,9 +2583,9 @@ Network Response:
 * **GET /registrar/{enrollmentID}/ecert**
 * **GET /registrar/{enrollmentID}/tcert**
 
-Use the Registrar APIs to manage end user registration with the certificate authority (CA). These API endpoints are used to register a user with the CA, determine whether a given user is registered, and to remove any login tokens for a target user from local storage, preventing them from executing any further transactions. The Registrar APIs are also used to retrieve user enrollment and transaction certificates from the system.
+使用注册API来管理的证书颁发机构（CA）的最终用户注册。这些API端点用于注册与CA用户，确定指定用户是否已注册，并从本地存储中删除任何目标用户的登录令牌，防止他们执行任何进一步的交易。注册API也用于从系统中检索用户注册和交易证书。
 
-The `/registrar` endpoint is used to register a user with the CA. The required Secret payload is defined below. The response to the registration request is either a confirmation of successful registration or an error, containing a reason for the failure.
+`/registrar`端点使用与CA注册用户所需的秘密payload定义如下。注册请求的响应可以是一个成功的注册的确认或包含失败的原因的错误。
 
 ```
 message Secret {
@@ -2586,10 +2594,10 @@ message Secret {
 }
 ```
 
-* `enrollId` - Enrollment ID with the certificate authority.
-* `enrollSecret` - Enrollment password with the certificate authority.
+* `enrollId` - 在证书颁发机构的注册ID
+* `enrollSecret` - 在证书颁发机构的密码
 
-Enrollment Request:
+注册请求:
 ```
 POST host:port/registrar
 
@@ -2599,75 +2607,76 @@ POST host:port/registrar
 }
 ```
 
-Enrollment Response:
+注册响应:
 ```
 {
     "OK": "Login successful for user 'lukas'."
 }
 ```
 
-The `GET /registrar/{enrollmentID}` endpoint is used to confirm whether a given user is registered with the CA. If so, a confirmation will be returned. Otherwise, an authorization error will result.
+`GET /registrar/{enrollmentID}`端点用于确认一个给定的用户是否与CA注册如果是，确认将被反悔。否则，将导致授权错误。
 
-Verify Enrollment Request:
+注册验证请求:
 ```
 GET host:port/registrar/jim
 ```
 
-Verify Enrollment Response:
+注册验证返回:
 ```
 {
     "OK": "User jim is already logged in."
 }
 ```
 
-Verify Enrollment Request:
+注册验证请求:
 ```
 GET host:port/registrar/alex
 ```
 
-Verify Enrollment Response:
+注册验证返回:
 ```
 {
     "Error": "User alex must log in."
 }
 ```
 
-The `DELETE /registrar/{enrollmentID}` endpoint is used to delete login tokens for a target user. If the login tokens are deleted successfully, a confirmation will be returned. Otherwise, an authorization error will result. No payload is required for this endpoint.
+`DELETE /registrar/{enrollmentID}` 端点用于删除一个目标用户的登录令牌。如果登录令牌成功删除，确认将被反悔。否则，将导致授权错误。此端点不需要payload。
 
-Remove Enrollment Request:
+删除注册请求:
 ```
 DELETE host:port/registrar/lukas
 ```
 
-Remove Enrollment Response:
+删除注册返回:
 ```
 {
     "OK": "Deleted login token and directory for user lukas."
 }
 ```
 
-The `GET /registrar/{enrollmentID}/ecert` endpoint is used to retrieve the enrollment certificate of a given user from local storage. If the target user has already registered with the CA, the response will include a URL-encoded version of the enrollment certificate. If the target user has not yet registered, an error will be returned. If the client wishes to use the returned enrollment certificate after retrieval, keep in mind that it must be URL-decoded.
+`GET /registrar/{enrollmentID}/ecert` 
+端点用于检索从本地存储给定用户的登记证书。如果目标用户已与CA注册，响应将包括注册证书的URL-encoded版本。如果目标用户尚未注册，将返回一个错误。如果客户希望使用检索后返回的注册证书，请记住，它必须是URL-decoded。
 
-Enrollment Certificate Retrieval Request:
+注册证书检索请求:
 ```
 GET host:port/registrar/jim/ecert
 ```
 
-Enrollment Certificate Retrieval Response:
+注册证书检索响应:
 ```
 {
     "OK": "-----BEGIN+CERTIFICATE-----%0AMIIBzTCCAVSgAwIBAgIBATAKBggqhkjOPQQDAzApMQswCQYDVQQGEwJVUzEMMAoG%0AA1UEChMDSUJNMQwwCgYDVQQDEwNPQkMwHhcNMTYwMTIxMDYzNjEwWhcNMTYwNDIw%0AMDYzNjEwWjApMQswCQYDVQQGEwJVUzEMMAoGA1UEChMDSUJNMQwwCgYDVQQDEwNP%0AQkMwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAARSLgjGD0omuJKYrJF5ClyYb3sGEGTU%0AH1mombSAOJ6GAOKEULt4L919sbSSChs0AEvTX7UDf4KNaKTrKrqo4khCoboMg1VS%0AXVTTPrJ%2BOxSJTXFZCohVgbhWh6ZZX2tfb7%2BjUDBOMA4GA1UdDwEB%2FwQEAwIHgDAM%0ABgNVHRMBAf8EAjAAMA0GA1UdDgQGBAQBAgMEMA8GA1UdIwQIMAaABAECAwQwDgYG%0AUQMEBQYHAQH%2FBAE0MAoGCCqGSM49BAMDA2cAMGQCMGz2RR0NsJOhxbo0CeVts2C5%0A%2BsAkKQ7v1Llbg78A1pyC5uBmoBvSnv5Dd0w2yOmj7QIwY%2Bn5pkLiwisxWurkHfiD%0AxizmN6vWQ8uhTd3PTdJiEEckjHKiq9pwD%2FGMt%2BWjP7zF%0A-----END+CERTIFICATE-----%0A"
 }
 ```
 
-The `/registrar/{enrollmentID}/tcert` endpoint retrieves the transaction certificates for a given user that has registered with the certificate authority. If the user has registered, a confirmation message will be returned containing an array of URL-encoded transaction certificates. Otherwise, an error will result. The desired number of transaction certificates is specified with the optional 'count' query parameter. The default number of returned transaction certificates is 1; and 500 is the maximum number of certificates that can be retrieved with a single request. If the client wishes to use the returned transaction certificates after retrieval, keep in mind that they must be URL-decoded.
+`/registrar/{enrollmentID}/tcert`端点检索已与证书机关登记给定用户的交易证书。如果用户已注册，确认消息将包含URL-encoded交易证书的列表被返回。否则，将会导致一个错误。交易证书的所需数量由可选的'count'查询参数指定。返回交易证书的默认数量为1;500是可以与单个请求中检索证书的最大数量。如果客户端希望使用取回后的交易证书，请记住，他们必须是URL-decoded。
 
-Transaction Certificate Retrieval Request:
+交易证书检索请求:
 ```
 GET host:port/registrar/jim/tcert
 ```
 
-Transaction Certificate Retrieval Response:
+交易证书检索响应:
 ```
 {
     "OK": [
@@ -2676,12 +2685,12 @@ Transaction Certificate Retrieval Response:
 }
 ```
 
-Transaction Certificate Retrieval Request:
+交易证书检索请求:
 ```
 GET host:port/registrar/jim/tcert?count=5
 ```
 
-Transaction Certificate Retrieval Response:
+交易证书检索响应:
 ```
 {
     "OK": [
@@ -2694,18 +2703,18 @@ Transaction Certificate Retrieval Response:
 }
 ```
 
-#### 6.2.1.6 Transactions API
+#### 6.2.1.6 交易API
 
 * **GET /transactions/{UUID}**
 
-Use the Transaction API to retrieve an individual transaction matching the UUID from the blockchain. The returned transaction message is defined in section [3.1.2.1](#3121-transaction-data-structure).
+使用交易API来从区块链中检索匹配UUID的单个交易。返回的交易消息在[3.1.2.1](#3121-transaction-data-structure)小节定义
 
-Transaction Retrieval Request:
+交易检索请求:
 ```
 GET host:port/transactions/f5978e82-6d8c-47d1-adec-f18b794f570e
 ```
 
-Transaction Retrieval Response:
+交易检索响应:
 ```
 {
     "type": 3,
@@ -2723,16 +2732,18 @@ Transaction Retrieval Response:
 
 ## 6.3 CLI
 
-The CLI includes a subset of the available APIs to enable developers to quickly test and debug chaincodes or query for status of transactions. CLI is implemented in Golang and operable on multiple OS platforms. The currently available CLI commands are summarized in the following section.
+CLI包括可用的API的一个子集，使开发人员能够快速测试和调试链代码或查询交易状态。CLI由Golang实现和可在多个操作系统上操作。当前可用的CLI命令归纳在下面的部分：
 
-### 6.3.1 CLI Commands
+### 6.3.1 CLI命令 
 
 To see what CLI commands are currently available in the implementation, execute the following:
+
+要查看当前可用的CLI命令，执行如下命令
 
     cd $GOPATH/src/github.com/hyperledger/fabic/peer
     ./peer
 
-You will receive a response similar to below:
+你可以获得和下面类似的响应：
 
 ```
     Usage:
@@ -2756,49 +2767,48 @@ You will receive a response similar to below:
 
 Some of the available command line arguments for the `peer` command are listed below:
 
-* `-c` - constructor: function to trigger in order to initialize the chaincode state upon deployment.
+* `-c` - 构造函数: 用来为部署触发初始化链代码状态的函数
 
-* `-l` - language: specifies the implementation language of the chaincode. Currently, only Golang is supported.
+* `-l` - 语言: 指定链代码的实现语言，目前只支持Golang
 
-* `-n` - name: chaincode identifier returned from the deployment transaction. Must be used in subsequent invoke and query transactions.
+* `-n` - 名字: 部署交易返回的链代码的标识。在后续的调用和查询交易中必须使用
 
-* `-p` - path: identifies chaincode location in the local file system. Must be used as a parameter in the deployment transaction.
+* `-p` - 路径: 链代码在本地文件系统中的标识。在部署交易时必须提供。
 
-* `-u` - username: enrollment ID of a logged in user invoking the transaction.
+* `-u` - 用户名: 调用交易的登入的用户的注册ID 
 
-Not all of the above commands are fully implemented in the current release. The fully supported commands that are helpful for chaincode development and debugging are described below.
+上述所有命令并非完全在当前版本中实现。如下所述全面支持的命令是有助于链代码的开发和调试的。
 
-Note, that any configuration settings for the peer node listed in the `core.yaml` configuration file, which is the  configuration file for the `peer` process, may be modified on the command line with an environment variable. For example, to set the `peer.id` or the `peer.addressAutoDetect` settings, one may pass the `CORE_PEER_ID=vp1` and `CORE_PEER_ADDRESSAUTODETECT=true` on the command line.
+所有peer节点的设置都被列在`core.yaml`这个`peer`处理的配置文件中，可能通过命令行的环境变量而被修改。如，设置`peer.id`或 `peer.ddressAutoDetect`，只需要传递`CORE_PEER_ID=vp1`和`CORE_PEER_ADDRESSAUTODETECT=true`给命令行。
 
 #### 6.3.1.1 peer
 
-The CLI `peer` command will execute the peer process in either the development or production mode. The development mode is meant for running a single peer node locally, together with a local chaincode deployment. This allows a chaincode developer to modify and debug their code without standing up a complete network. An example for starting the peer in development mode follows:
+`peer`CLI命令在开发和生产环境中都会执行peer处理。开发模式会在本地运行单个peer节点和本地的链代码部署。这使得在链代码开修改和调试代码，不需要启动一个完整的网络。在开发模式启动peer的一个例子：
 
 ```
 ./peer peer --peer-chaincodedev
 ```
 
-To start the peer process in production mode, modify the above command as follows:
+在生产环境中启动peer进程，像下面一样修改上面的命令：
 
 ```
 ./peer peer
 ```
 
-#### 6.3.1.2 login
+#### 6.3.1.2 登录
 
-The CLI `login` command will login a user, that is already registered with the CA, through the CLI. To login through the CLI, issue the following command, where `username` is the enrollment ID of a registered user.
-
+登录的CLI命令会登入一个已经在CA注册的用户。要通过CLI登录，发出以下命令，其中`username`是注册用户的注册ID。
 ```
 ./peer login <username>
 ```
 
-The example below demonstrates the login process for user `jim`.
-
+下面的例子演示了用户`jim`登录过程。
 ```
 ./peer login jim
 ```
 
-The command will prompt for a password, which must match the enrollment password for this user registered with the certificate authority. If the password entered does not match the registered password, an error will result.
+该命令会提示输入密码，密码必须为此用户使用证书颁发机构注册登记的密码相匹配。如果输入的密码不正确的密码匹配，将导致一个错误。
+
 
 ```
 22:21:31.246 [main] login -> INFO 001 CLI client login...
@@ -2809,58 +2819,58 @@ Enter password for user 'jim': ************
 22:21:40.624 [main] login -> INFO 005 Login successful for user 'jim'.
 ```
 
-You can also pass a password for the user with `-p` parameter. An example is below.
+您也可以与`-p`参数来提供用户的密码。下面是一个例子。
 
 ```
 ./peer login jim -p 123456
 ```
 
-#### 6.3.1.3 chaincode deploy
+#### 6.3.1.3 链代码部署
 
-The CLI `deploy` command creates the docker image for the chaincode and subsequently deploys the package to the validating peer. An example is below.
+`deploy`CLI命令为链代码和接下来的部署包到验证peer创建docker镜像。如下面的例子。
 
 ```
 ./peer chaincode deploy -p github.com/hyperledger/fabric/example/chaincode/go/chaincode_example02 -c '{"Function":"init", "Args": ["a","100", "b", "200"]}'
 ```
 
-With security enabled, the command must be modified to pass an enrollment id of a logged in user with the `-u` parameter. An example is below.
+启用安全性时，命令必须修改来通过`-u`参数传递用户登录的注册ID。下面是一个例子
 
 ```
 ./peer chaincode deploy -u jim -p github.com/hyperledger/fabric/example/chaincode/go/chaincode_example02 -c '{"Function":"init", "Args": ["a","100", "b", "200"]}'
 ```
 
-#### 6.3.1.4 chaincode invoke
+#### 6.3.1.4 链代码调用
 
-The CLI `invoke` command executes a specified function within the target chaincode. An example is below.
+`invoke`CLI命令执行目标来代码中的指定函数。如下：
 
 ```
 ./peer chaincode invoke -n <name_value_returned_from_deploy_command> -c '{"Function": "invoke", "Args": ["a", "b", "10"]}'
 ```
 
-With security enabled, the command must be modified to pass an enrollment id of a logged in user with the `-u` parameter. An example is below.
+启用安全性时，命令必须修改来通过`-u`参数传递用户登录的注册ID。下面是一个例子
 
 ```
 ./peer chaincode invoke -u jim -n <name_value_returned_from_deploy_command> -c '{"Function": "invoke", "Args": ["a", "b", "10"]}'
 ```
 
-#### 6.3.1.5 chaincode query
+#### 6.3.1.5 链代码查询
 
-The CLI `query` command triggers a specified query method within the target chaincode. The response that is returned depends on the chaincode implementation. An example is below.
+`query`CLI命令在目标链代码上触发指定的查询。返回的响应取决于链代码实现。下面是一个例子。
 
 ```
 ./peer chaincode query -l golang -n <name_value_returned_from_deploy_command> -c '{"Function": "query", "Args": ["a"]}'
 ```
 
-With security enabled, the command must be modified to pass an enrollment id of a logged in user with the `-u` parameter. An example is below.
+启用安全性时，命令必须修改来通过`-u`参数传递用户登录的注册ID。下面是一个例子
 
 ```
 ./peer chaincode query -u jim -l golang -n <name_value_returned_from_deploy_command> -c '{"Function": "query", "Args": ["a"]}'
 ```
 
 
-## 7. Application Model
+## 7. 应用模型 
 
-### 7.1 Composition of an Application
+### 7.1 应用的组成
 <table>
 <col>
 <col>
@@ -2878,6 +2888,8 @@ An application follows a MVC-B architecture – Model, View, Control, BlockChain
 </ul>
 <p>
 For example, a Bluemix PaaS application using Node.js might have a Web front-end user interface or a native mobile app with backend model on Cloudant data service. The control logic may interact with 1 or more chaincodes to process transactions on the blockchain.
+
+例如，使用Node.js的一个Bluemix PaaS的应用程序可能有一个Web前端用户界面或与Cloudant数据服务后端模型中的原生移动应用。控制逻辑可以被1或多个链代码交互以处理对区块链交易。
 
 </td>
 </tr>
