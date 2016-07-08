@@ -14,7 +14,7 @@
 下面这些作者编写了这份分档： Binh Q Nguyen, Elli Androulaki, Angelo De Caro, Sheehan Anderson, Manish Sethi, Thorsten Kramp, Alessandro Sorniotti, Marko Vukolic, Florian Simon Schubert, Jason K Yellick, Konstantinos Christidis, Srinivasan Muralidharan, Anna D Derbakova, Dulce Ponceleon, David Kravitz, Diego Masini.
 
 ### 评审     
-下面这些评审人评审了这份文档： Frank Lu, John Wolpert, Bishop Brock, Nitin Gaur, Sharon Weed.
+下面这些评审人评审了这份文档： Frank Lu, John Wolpert, Bishop Brock, Nitin Gaur, Sharon Weed, Konrad Pabjan.
 
 ### 致谢     
 下面这些贡献者对这份规范提供了技术支持:
@@ -42,7 +42,7 @@ ________________________________________________________
    - 2.2.2 多验证Peers
    - 2.2.3 多链
 
-#### 3. 验证
+#### 3. 协议
 
    - 3.1 消息
    - 3.1.1 发现消息
@@ -58,8 +58,9 @@ ________________________________________________________
    - 3.2.1 区块链
    - 3.2.1.1 块
    - 3.2.1.2 块Hashing
-   - 3.2.1.4 非散列数据
-   - 3.2.2 世界状态
+   - 3.2.1.3 非散列数据(NonHashData)
+   - 3.2.1.4 交易
+   - 3.2.2 世界状态(World State)
    - 3.2.2.1 世界状态的Hashing
    - 3.2.2.1.1 Bucket-tree
    - 3.3 Chaincode
@@ -69,7 +70,7 @@ ________________________________________________________
    - 3.3.2.2 Chaincode调用
    - 3.3.2.3 Chaincode查询
    - 3.3.2.4 Chaincode状态
-   - 3.4 可拔插的共识框架
+   - 3.4 可插拔的共识框架
    - 3.4.1 共识者接口
    - 3.4.2 共识程序接口
    - 3.4.3 Inquirer 接口
@@ -89,8 +90,8 @@ ________________________________________________________
    - 3.4.11 Helper 包
    - 3.5 事件
    - 3.5.1 事件流 
-   - 3.5.2 事件适配器    
-   - 3.5.3 事件框架
+   - 3.5.2 事件结构
+   - 3.5.3 事件适配器    
 
 #### 4. 安全
    - 4. 安全
@@ -99,7 +100,7 @@ ________________________________________________________
    - 4.2.1 用户/客户端注册过程
    - 4.2.2 过期和废止证书
    - 4.3 基础设施层面提供的交易安全
-   - 4.3.1 交易安全的生命周期
+   - 4.3.1 交易的安全生命周期
    - 4.3.2 交易保密性
    - 4.3.2.1 针对用户的保密
    - 4.3.2.2 针对验证器的保密
@@ -116,8 +117,6 @@ ________________________________________________________
 #### 5. 拜占庭共识
    - 5.1 概览
    - 5.2 Core PBFT
-   - 5.3 Inner Consensus Programming 接口
-   - 5.4 Sieve共识
 
 #### 6. 应用编程接口
    - 6.1 REST 服务
@@ -128,18 +127,18 @@ ________________________________________________________
    - 7.1 应用组成
    - 7.2 应用样例
 
-#### 8. Future Directions
-   - 8.1 Enterprise Integration
-   - 8.2 Performance and Scalability
-   - 8.3 Additional Consensus Plugins
-   - 8.4 Additional Languages
+#### 8. 未来发展方向    
+   - 8.1 企业集成
+   - 8.2 性能于可扩展性
+   - 8.3 附加的共识插件
+   - 8.4 附加的语音    
 
 #### 9. References
 
 ________________________________________________________
 
 ## 1. 介绍    
-这份文档规范了工业界的区块链的概念，架构和协议
+这份文档规范了适用于工业界的区块链的概念，架构和协议。
 
 ### 1.1 什么是fabric?
 fabric是在系统中数字时间，交易调用，不同参与者共享的总账。总账只能通过共识的参与者来更新，而且一旦被记录，信息永远不能被修改。每一个记录的事件都可以根据参与者的协议进行加密验证。
@@ -356,7 +355,7 @@ enum ConfidentialityLevel {
 
 **域的定义:**
 - `type` - 交易的类型, 为1时表示:
-	- `UNDEFINED` - 为未来的使用所保留.
+  - `UNDEFINED` - 为未来的使用所保留.
   - `CHAINCODE_DEPLOY` - 代表部署新的链代码.
 	- `CHAINCODE_INVOKE` - 代表一个链代码函数被执行并修改了世界状态
 	- `CHAINCODE_QUERY` - 代表一个链代码函数被执行并可能只读取了世界状态
@@ -455,6 +454,7 @@ message ChaincodeInvocationSpec {
 message SyncBlockRange {
     uint64 start = 1;
     uint64 end = 2;
+    uint64 end = 3;
 }
 ```
 接收peer使用包含 `SyncBlocks`对象的`payload`的`SYNC_BLOCKS`信息来响应
@@ -513,7 +513,7 @@ delta可能以顺序（从i到j）或倒序（从j到i）来表示状态转变
 
 ### 3.2 总账
 
-总账由两个主要的部分组成，一个是区块链，一个是世界状态。区块链是在总账中的一系列连接好的用来记录交易的区块。世界状态是一个用来存储交易执行状态的键-值数据库
+总账由两个主要的部分组成，一个是区块链，一个是世界状态。区块链是在总账中的一系列连接好的用来记录交易的区块。世界状态是一个用来存储交易执行状态的键-值(key-value)数据库
 
 
 ### 3.2.1 区块链    
@@ -550,16 +550,16 @@ message BlockTransactions {
 
 #### 3.2.1.2 区块哈希    
 
-* `previousBlockHash`哈希是通过下面算法计算的
-  1. 使用protocol buffer库把区块消息序列化为字节码
+* `previousBlockHash`哈希是通过下面算法计算的     
+  1. 使用protocol buffer库把区块消息序列化为字节码     
 
-  2. 使用[FIPS 202](http://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf)描述的SHA3 SHAKE256算法来对序列化后的区块消息计算大小为512位的哈希值
+  2. 使用[FIPS 202](http://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf)描述的SHA3 SHAKE256算法来对序列化后的区块消息计算大小为512位的哈希值     
 
-* `transactionHash`是交易merkle树的根。定义merkle tree实现是一个代办
+* `transactionHash`是交易merkle树的根。定义merkle tree实现是一个代办     
 
-* `stateHash`在3.2.2.1节中定义.
+* `stateHash`在3.2.2.1节中定义.     
 
-#### 3.2.1.3 NonHashData
+#### 3.2.1.3 非散列数据(NonHashData)    
 
 NonHashData消息是用来存储不需要所有peer都具有相同值的块元数据。他们是建议值。
 
@@ -592,7 +592,7 @@ message TransactionResult {
 
 #### 3.2.1.4 交易执行     
 
-一个交易定义了它们部署或执行的链代码。区块中的所有交易都可以在记录到总账中的区块之前运行。当链代码执行是，他们可能会改变世界状态。之后世界状态的哈希会被记录在区块中。
+一个交易定义了它们部署或执行的链代码。区块中的所有交易都可以在记录到总账中的区块之前运行。当链代码执行时，他们可能会改变世界状态。之后世界状态的哈希会被记录在区块中。
 
 
 ### 3.2.2 世界状态    
@@ -658,7 +658,7 @@ peer的*世界状态*涉及到所有被部署的链代码的*状态*集合。进
 在一个具体的部署中，所有的peer都期望使用相同的`numBuckets, maxGroupingAtEachLevel, 和 hashFunction`的配置。进一步说，如果任何一个配置在之后的阶段被改变，那么这些改变需要应用到所有的peer中，来保证peer节点之间的加密-哈希的比较是有意义的。即使，这可能会导致基于实现的已有数据的迁移。例如：一种实现希望存储树中所有节点最后计算的加密-哈希，那么它就需要被重新计算。
 
 
-### 3.3 链代码    
+### 3.3 链代码（Chaincode）    
 链代码是在交易（参看3.1.2节）被部署是分发到网络上，并被所有验证peer通过隔离的沙箱来管理的应用级代码。尽管任意的虚拟技术都可以支持沙箱，现在Docker容器被用来运行链代码。这节中描述的协议可以启用不同虚拟实现的插入与运行。
 
 
@@ -672,6 +672,7 @@ type VM interface {
 	stop(ctxt context.Context, id string, timeout uint, dontkill bool, dontremove bool) error
 }
 ```
+
 fabric在处理链代码上的部署交易或其他交易时，如果这个链代码的VM未启动（崩溃或之前的不活动导致的关闭）时实例化VM。每个链代码镜像通过`build`函数构建，通过`start`函数启动，并使用`stop`函数停止。
 
 一旦链代码容器被启动，它使用gRPC来连接到启动这个链代码的验证peer，并为链代码上的调用和查询交易建立通道。
@@ -726,14 +727,14 @@ type Chaincode interface {
 }
 ```
 
-参数`function`和`args`指向链代码的实现的调用和传递的`args`。`Query`函数和这个一样。`Query`函数不允许改变状态；它只被允许以字节数组的方式读取和计算返回值。
+`Init`, `Invoke` 和 `Query`函数使用`function` and `args`参数来支持多种交易。`Init`是构造函数，它只在部署交易是被执行。`Query`函数是不允许修改链代码的状态的；它只能读取和计算并以byte数组的形式返回。    
 
 ### 3.3.2.1 链代码部署    
 当部署时（链代码容器已经启动），shim层发送一次性的具有包含`ChaincodeID`的`payload`的`REGISTER`消息给验证peer。然后peer以`REGISTERED`或`ERROR`来响应成功或失败。当收到`ERROR`后shim关闭连接并退出。     
 
-注册之后，验证peer发送具有包含`ChaincodeInput`对象的`INIT`消息。shim使用从`ChaincodeInput`获得的参数来调用`Invoke`函数，通过设置持久化状态这样操作来初始化链代码。
+注册之后，验证peer发送具有包含`ChaincodeInput`对象的`INIT`消息。shim使用从`ChaincodeInput`获得的参数来调用`Init`函数，通过像设置持久化状态这样操作来初始化链代码。
 
-shim根据`Invoke`函数的返回值，响应`RESPONSE`或`ERROR`消息。如果没有错误，那么链代码初始化完成，并准备好接收调用和查询交易。
+shim根据`Init`函数的返回值，响应`RESPONSE`或`ERROR`消息。如果没有错误，那么链代码初始化完成，并准备好接收调用和查询交易。
 
 ### 3.3.2.2 链代码调用    
 当处理调用交易时，验证peer发送`TRANSACTION`消息给链代码容器的shim，由它来调用链代码的`Invoke`函数，并传递从`ChaincodeInput`得到的参数。shim响应`RESPONSE`或`ERROR`消息来表示函数完成。如果接收到`ERROR`函数，`payload`包含链代码所产生的错误信息。
@@ -784,7 +785,7 @@ message RangeQueryStateKeyValue {
 }
 ```
 
-如果相应中`hasMore=true`，这表示有在请求的返回中还有另外的键。链代码可以通过发送包含与响应中ID相同的ID的`RangeQueryStateNext`消息来获取下一集合
+如果相应中`hasMore=true`，这表示有在请求的返回中还有另外的键。链代码可以通过发送包含与响应中ID相同的ID的`RangeQueryStateNext`消息来获取下一集合。
 
 ```
 message RangeQueryStateNext {
@@ -1428,9 +1429,9 @@ TCerts可容纳的加密或密钥协议的公共密钥（以及数字签名的�
 * Validity period – 该交易证书可用于交易的外/外部签名的时间窗口。
 
 这里至少有三种方式来配置考虑了隐藏注册ID域密钥的分配方案：
-*(a)* 每个K在注册期间发给用户，peer和审计员，并对TCA和授权的审计员可用。它可能，例如由K<sub>chain</sub>派生（会在这个规范的后面描述）或为了链代码的保密性使用独立的key(s)。
+*(a)* Pre-K在注册期间发给用户，peer和审计员，并对TCA和授权的审计员可用。它可能，例如由K<sub>chain</sub>派生（会在这个规范的后面描述）或为了链代码的保密性使用独立的key(s)。
 
-*(b)* 每个K对验证器，TCA和授权的审计员可用。K是在验证器成功响应用户的查询交易（通过TLS）后可用给的。查询交易可以使用与调用交易相同的格式。对应下面的例1，如果查询用户又有部署交易的ACL中的一张TCert，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。对应下面的例2，如果查询所使用TCert的注册ID（enrollmentID）与部署交易中访问控制域的其中一个隶属关系/角色匹配，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。
+*(b)* Pre-K对验证器，TCA和授权的审计员可用。K是在验证器成功响应用户的查询交易（通过TLS）后可用给的。查询交易可以使用与调用交易相同的格式。对应下面的例1，如果查询用户又有部署交易的ACL中的一张TCert，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。对应下面的例2，如果查询所使用TCert的注册ID（enrollmentID）与部署交易中访问控制域的其中一个隶属关系/角色匹配，那么就可以得到创建这个部署交易的用户的注册ID（enrollmentID）。
 
 *Example 1:*
 
@@ -1441,7 +1442,7 @@ TCerts可容纳的加密或密钥协议的公共密钥（以及数字签名的�
 ![Example 2](./images/sec-example-2.png)
 
 *(c)*
-每个K对TCA和授权的审计员可用。对于批量中的所有TCert，TCert特有的K可以和TCert一起分发给TCert的所有者（通过TLS）。这样就通过K的TCert所有者启用目标释放（TCert所有者的注册ID的可信通知）。这样的目标释放可以使用预定收件人的密钥协商公钥和/或PK<sub>chain</sub>其中SK<sub>chain</sub>就像规范的后面描述的那样对验证器可用。这样目标释放给其它合同的参与者也可以被纳入到这个交易或在频外完成。
+Pre-K对TCA和授权的审计员可用。对于批量中的所有TCert，TCert特有的K可以和TCert一起分发给TCert的所有者（通过TLS）。这样就通过K的TCert所有者启用目标释放（TCert所有者的注册ID的可信通知）。这样的目标释放可以使用预定收件人的密钥协商公钥和/或PK<sub>chain</sub>其中SK<sub>chain</sub>就像规范的后面描述的那样对验证器可用。这样目标释放给其它合同的参与者也可以被纳入到这个交易或在频外完成。
 
 
 如果TCert与上述的ECert模型A的结合使用，那么使用K不发送给TCert的所有者的方案（c）就足够了。
@@ -1557,14 +1558,12 @@ Validators receive the confidential transactions, and pass them through the foll
 
 
 目标是达到允许任意的子集实体被允许或限制访问链代码的下面所展示的部分：
-1. 链代码内容，即，链代码的完整（源）代码
-<!--& roles of users in that chaincode-->
-2. 链代码函数头，即，包含在链代码中函数的原型
+1. 链代码函数头，即，包含在链代码中函数的原型
 <!--access control lists, -->
 <!--and their respective list of (anonymous) identifiers of users who should be
    able to invoke each function-->
-3. 链代码[调用&] 状态,即， 当一个或多个函数被调用时，连续更新的特定链码的状态。
-4. 所有上面所说的
+2. 链代码[调用&] 状态,即， 当一个或多个函数被调用时，连续更新的特定链码的状态。
+3. 所有上面所说的
 
 注意，这样的设计为应用提供利用fabric的会籍管理基础设施和公钥基础设施来建立自己的访问控制策略和执法机制的能力。
 
@@ -1933,7 +1932,8 @@ OBCSecCtx需要给在线钱包服务必要的信息来注册用户和发布需�
           AccSecProof<sub>u</sub>	/* proof of AccSec<sub>u</sub> \*/
      }
 
-这里，TxDetails指向在线服务代表用户构造交易所需要的信息，如类型，和用户指定的交易的内容。
+这里，TxDetails指向在线服务代表用户构造交易所需要的信息，如类型，和用户指定的交易的内容。    
+
 AccSecProof<sub>u</sub>是对应请求中剩下的域的使用共享密钥的HMAC。   
 Nonce-based方法与我们在fabric中一样可以防止重放攻击。    
 
@@ -2071,141 +2071,6 @@ newPbftCore构造器使用指定的`id`来实例化一个新的PBFT箱子实例�
 | `general.timeout.viewchange` | *duration* | 2s            | Max delay between view-change start and next request execution |
 
 接口中传递的`consumer`和`ledger`参数是一旦它们全部排好序后用来查询应用状态和调用应用请求的。参阅下面这些接口的相应部分。
-
-
-#### 5.2.2 请求
-
-签名:
-
-```
-func (pbft *pbftCore) request(msgPayload []byte) error
-```
-
-`request`方法采用不透明的请求payload并把这个请求引入全序共识。一旦PBFT处理完成，这个payload将被传递给CPI`execute`函数在所有正确的，最新的副本。`request`方法不会在反悔前等待执行；`request`仅仅向共识提交请求。
-
-PBFT不支持提交相同的请求多次的，即，如果概念上相同的请求必须被执行多次，那么就需要nonce。然而，PBFT不能可靠地防止请求重放；由应用程序使用nonce或序列号来防止拜占庭客户端的重放。
-
-In rare cases, a `request` may be dropped by the network, and it will never `execute`; if the consumer cannot tolerate this, the consumer needs to implement retries itself.
-在极少数情况下，`request`可能被网络丢弃，它永远不会`execute`；如果消费者不能忍受这一点，消费者本身需要实现重试。
-
-#### 5.2.3 接收
-
-签名:
-
-```
-func (pbft *pbftCore) receive(msgPayload []byte) error
-```
-
-`receive`方法采用不透明的信息payload，由另一个实例传递给`broadcast`或`unicast`CPI函数。 所有通信都希望，以确保完整性和提供认证; 例如通过使用TLS。注意，目前尚未使用的认证。一旦提供身份验证，`receive`的函数签名应包括发送节点的ID。
-
-参见下面讨论的`innerCPI.broadcast` 和 `innerCPI.unicast`.
-
-
-#### 5.2.4 关闭
-
-签名:
-
-```
-func (pbft *pbftCore) close()
-```
-
-`close`方法终止所有后台操作。因为在fabric的操作过程中，永远不需要终止PBFT实例，这个接口的暴露主要是为了测试。
-
-### 5.3 Inner Consensus Programming Interface
-
-消费者应用程序为core PBFT提供一致内部编程接口。 PBFT将调用这些函数来查询状态和信号事件。
-
-定义:
-
-```
-type innerCPI interface {
-	broadcast(msgPayload []byte)
-	unicast(msgPayload []byte, receiverID uint64) (err error)
-	validate(txRaw []byte) error
-	execute(txRaw []byte, rawMetadata []byte)
-	viewChange(curView uint64)
-}
-```
-
-#### 5.3.1 广播
-
-签名:
-
-```
-func (cpi innerCPI) broadcast(msgPayload []byte)
-```
-
-`broadcast`函数采用不透明的payload，并通过`receive` 方法投递它到所有其它副本。消息可能会丢失或重排。另请参阅`receive`调用core PBFT部分。
-
-#### 5.3.2 单播
-
-签名:
-
-```
-func (cpi innerCPI) unicast(msgPayload []byte, receiverID uint64) (err error)
-```
-
-`unicast`函数和`broadcast`相似，但采用目的副本id。
-
-#### 5.3.3 验证
-
-签名:
-
-```
-func (cpi innerCPI) validate(txRaw []byte) error
-```
-`validate`在PBFT接受到新请求是调用，不管是本地的通过`request`或共识消息。`validate`的参数是不透明的请求，由PBFT的`request`方法提供。如果`validate`放回non-`nil`错误，本地的副本会丢弃请求，并当作从来没有收到过请求。
-
-`validate`函数可以用来验证应用请求的语法（如，*external validity*检查[2]）。必须注意不要引入验证请求时的不确定性；如验证不能使用任何状态，如，如果不同的副本以不同的序列收到`validate`调用，还涉及到`execute`。如果在验证时发生不确定性，不同的副本的行为可能发散，这可能导致丢弃请求或共识完全故障。
-
-
-#### 5.3.4 执行
-
-签名:
-
-```
-func (cpi innerCPI) execute(txRaw []byte, opts ...interface{})
-```
-请求由一致性协议被成功完全排序后，PBFT将调用`execute`函数。 传递给`execute`的参数是不透明的请求，如先前已传递给`request`。 正确的，最新的副本将接收到相同序列的`execute`调用。 处理请求时，应用程序必须是确定性的。 任何不确定性将导致对副本发散状态，这被认为是一个错综复杂的行为。 
-
-另见上面的`request`部分的要求重播的讨论。
-
-#### 5.3.5 viewChange
-
-签名:
-
-```
-func (cpi innerCPI) viewChange(curView uint64)
-```
-该`viewChange`功能被称为PBFT信号到一个新的视图成功转型（一个新的）。这些信息，现在只有*Sieve*共识算法感兴趣，它采用PBFT领导人选举，以避免自己实现。
-
-假设副本的数量固定，它是简单的使用模算术把curView uint64映射到副本标识。考虑到这一点，core PBFT实现，假设最终同步[4]，它是直截了当地认为，'viewChange`调用功能允许简单实现*最终领导*不可靠的故障检测 &Omega; [3]。
-
-### 5.4 Sieve共识协议
-
-Sieve的设计主要是向PBFT共识协议增加两个主要的设计目标：
-
-- 启用*副本输出状态的共识*, 除了对PBFT提供的输入状态的共识。为了实现这一目标，Sieve采用了Execute-Verify (Eve)模式[5]
-
-- 由于fabric允许执行任意的链代码，这样的链代码可能会引入*不确定*交易。虽然不确定的交易，原则上是不允许的，通过，例如，链代码的仔细检查，使用领域特定语言（DSL），或者以其他方式强制执行确定，Sieve的设计目标是提供一个单独的*共识 fabric-层*可与上述方法结合使用来针对*不确定性*交易。
-
-    为此，Sieve检测并*筛出不确定性交易（即表现为这样）。因此，Sieve不要求所有输入交易的共识（即重复状态机）是确定性的。Sieve的这一特点是新的，没有被任何现有的拜占庭容错共识协议来实现。
-
-协议实现上述两个目标不应该被设计并从头开始的，应该重用现有PBFT实现，这降低了代码的复杂性，并简化有关达成新的共识协议的推理。为此，来自[6]的灵感，Sieve采用模块化方法设计的，重用`obcpbft`的core PBFT组件。
-
-虽然Sieve的细节将在其他地方[7]出现，我们简单介绍一下下面的一些设计和实现方面的问题。
-
-简而言之，Sieve需要副本，以确定在执行请求的输出上的共识。如果请求是在第一时间确定的，正确的副本将获得相同的输出，他们可以在这个非常认同的结果。然而，如果请求在正确的副本上产生了发散输出，Sieve可以检测这个发散状态，副本将同意丢弃请求的结果，从而保持确定性。
-
-注意，如下面进一步讨论的，Sieve允许漏报，即，在足够数量的副本执行*不确定性*请求产生相同的执行结果。然而，Sieve允许没有误报和要求丢弃的肯定是不确定性。
-
-
-Sieve协议使用core PBFT来同意接受或丢弃请求。请求Sieve的执行是由*领导*，映射到当前主PBFT（利用从core PBFT `innerCPI.viewchange`通知）来协调的。当一个新的请求，该领导指示所有副本尝试执行请求。然后每个副本报告初步结果（即应用的状态）给领导者。领导者收集这些在*校验集*中的*验证*报告，它毫不含糊地确定该请求是否应该接受或放弃。此校验集，然后通过core PBFT的全序。
-
-当core PBFT执行此验证集，所有正确的副本都会以同样的方式执行。如果验证集证明正确的副本之间存在分歧，请求被视为非确定性，并且副本将回滚，并恢复原始应用程序的状态。如果所有的正确副本中获得的相同的结果，副本接受执行和提交的尝试执行状态。
-
-在不利的条件下，正确的副本之间分歧的请求可能会出现像确定的要求（Sieve检测不确定请求发言的*漏报*）。然而，Seeve至少需要一个正确副本，以获得特定结果的状态来提交。正确的副本可能观察到分歧执行，将放弃他们的结果，并同步他们的状态，以配合商定执行。
-
 
 ## 6. 应用编程接口
 fabric的主要接口是REST API。 REST API允许应用注册用户，查询区块链，并发布交易。 CLI为了开发，同样提供有效API的子集。CLI允许开发人员能够快速测试链代码或查询交易状态。
@@ -2875,17 +2740,16 @@ Enter password for user 'jim': ************
 <tr>
 <td width="50%"><img src="images/refarch-app.png"></td>
 <td valign="top">
-An application follows a MVC-B architecture – Model, View, Control, BlockChain.
+一个遵循MVC-B架构的应用– Model, View, Control, BlockChain.
 <p><p>
 
 <ul>
-  <li>VIEW LOGIC – Mobile or Web UI interacting with control logic.</li>
-  <li>CONTROL LOGIC – Coordinates between UI, Data Model and APIs to drive transitions and chain-code.</li>
-  <li>DATA MODEL – Application Data Model – manages off-chain data, including Documents and large files.</li>
-  <li>BLOCKCHAIN  LOGIC – Blockchain logic are extensions of the Controller Logic and Data Model, into the Blockchain realm.    Controller logic is enhanced by chaincode, and the data model is enhanced with transactions on the blockchain.</li>
+  <li>VIEW LOGIC – 与控制逻辑集成的移动或WEB 用户界面。</li>
+  <li>CONTROL LOGIC – 协调用户界面、数据模型和交易与链代码的API </li>
+  <li>DATA MODEL – 应用数据模型– 管理包括文档和大文件这样的非链（off-chain）数据</li>
+  <li>BLOCKCHAIN  LOGIC – 区块链逻辑是控制逻辑和数据模型在区块链领域的扩展，链代码（chaincode）加强了控制逻辑，区块链上的交易加强了数据模型。</li>
 </ul>
 <p>
-For example, a Bluemix PaaS application using Node.js might have a Web front-end user interface or a native mobile app with backend model on Cloudant data service. The control logic may interact with 1 or more chaincodes to process transactions on the blockchain.
 
 例如，使用Node.js的一个Bluemix PaaS的应用程序可能有一个Web前端用户界面或与Cloudant数据服务后端模型中的原生移动应用。控制逻辑可以被1或多个链代码交互以处理对区块链交易。
 
@@ -2893,7 +2757,7 @@ For example, a Bluemix PaaS application using Node.js might have a Web front-end
 </tr>
 </table>
 
-### 7.2 7.2 Sample Application
+### 7.2 Sample Application
 
 
 ## 8. Future Directions
